@@ -1,0 +1,165 @@
+好的，以下是更新后的设计文档，将安全认证部分调整为使用HTTP协议结合AES-256加密。
+3D打印AI推理服务助手设计文档
+一、项目概述
+本项目旨在实现一个3D打印AI推理服务助手，用于通过AI预测3D打印过程中可能出现的错误。该助手将与Klipper固件配合使用，通过Moonraker API进行通信。主要功能包括：
+接收来自Klipper的用户配置和AI服务请求。
+根据用户设置调用本地或云端AI服务。
+实时监控打印过程，仅在打印过程中进行预测。
+根据预测结果通知Klipper暂停打印。
+保存用户设置、机器信息和预测结果到SQLite3数据库。
+二、架构设计
+1. 分层架构
+API层：负责接收来自Klipper通过Moonraker发送的RESTful POST JSON请求，并向Klipper发送命令。
+业务逻辑层：处理业务逻辑，如根据用户设置决定是否调用AI服务、混合调用本地和云端AI服务、根据预测结果通知Klipper暂停等。
+通信层：与Moonraker API进行交互，发送命令或接收状态更新。
+数据库层：使用SQLite3数据库保存用户的设置、机器信息和预测结果。
+2. 组件交互
+Klipper通过Moonraker向API层发送用户配置或请求AI服务。
+API层接收到请求后，将请求转发给业务逻辑层。
+业务逻辑层根据用户设置和打印状态决定是否调用AI服务，调用本地或云端AI服务，并将预测结果返回给API层。
+API层将预测结果发送给Klipper。
+业务逻辑层实时监控打印过程的状态，通过通信层与Moonraker交互，获取打印状态更新。
+三、技术选型
+编程语言：Go语言，具有高效的并发处理能力和良好的性能。
+数据库：SQLite3，轻量级的嵌入式数据库，便于部署和维护。
+通信协议：HTTP，用于与Moonraker进行交互。
+加密方式：AES-256，用于加密通信数据。
+日志框架：使用Go语言的log标准库或第三方日志库（如logrus或zap）来记录日志。
+配置管理：使用Go语言的flag标准库或第三方配置库（如viper）来管理配置文件。
+四、数据库表设计
+1. 机型信息表（machine_info）
+字段名数据类型描述machine_snTEXT机器SN码（主键）machine_modelTEXT机器型号auth_tokenTEXT认证token
+2. 用户设置表（user_settings）
+字段名数据类型描述idINTEGER主键，自增enable_aiBOOLEAN是否开启AI服务enable_cloud_aiBOOLEAN是否开启云端AI服务confidence_thresholdINTEGER置信度阈值（0-100）pause_on_thresholdBOOLEAN超过阈值是否暂停
+3. 预测结果表（prediction_results）
+字段名数据类型描述task_idTEXT任务ID（主键）prediction_statusINTEGER预测状态（0-未预测，1-预测中，2-已预测）prediction_modelTEXT预测模型has_defectBOOLEAN是否有缺陷defect_typeTEXT缺陷类型confidenceREAL置信度
+五、API接口定义
+1. 查询远程AI健康状态
+URL：/api/v1/ai/health
+Method：GET
+Response：
+JSONCopy
+{
+  "status": "ok" // 或 "error"
+}
+2. 设备注册
+URL：/api/v1/machine/register
+Method：POST
+Request Body：
+JSONCopy
+{
+  "machine_model": "string",
+  "machine_sn": "string"
+}
+Response：
+JSONCopy
+{
+  "auth_token": "string"
+}
+3. Token刷新
+URL：/api/v1/token/refresh
+Method：POST
+Request Body：
+JSONCopy
+{
+  "machine_sn": "string",
+  "old_token": "string"
+}
+Response：
+JSONCopy
+{
+  "new_token": "string"
+}
+4. 用户设置同步
+URL：/api/v1/settings/sync
+Method：POST
+Request Body：
+JSONCopy
+{
+  "enable_ai": true,
+  "enable_cloud_ai": true,
+  "confidence_threshold": 80,
+  "pause_on_threshold": true
+}
+Response：
+JSONCopy
+{
+  "status": "ok" // 或 "error"
+}
+5. 预测请求
+URL：/api/v1/predict
+Method：POST
+Request Body：
+JSONCopy
+{
+  "image_url": "http://example.com/images/xxx.jpg",
+  "task_id": "PT202403120001",
+  "callback_url": "http://cloud-service/api/v1/ai/callback"
+}
+Response：
+JSONCopy
+{
+  "status": "ok" // 或 "error"
+}
+6. 接收AI返回的结果
+URL：/api/v1/ai/callback
+Method：POST
+Request Body：
+JSONCopy
+{
+  "task_id": "PT202403120001",
+  "prediction_status": 2,
+  "prediction_model": "string",
+  "has_defect": true,
+  "defect_type": "string",
+  "confidence": 90.5
+}
+Response：
+JSONCopy
+{
+  "status": "ok" // 或 "error"
+}
+7. 控制打印机暂停
+URL：/api/v1/printer/pause
+Method：POST
+Request Body：
+JSONCopy
+{
+  "machine_sn": "string"
+}
+Response：
+JSONCopy
+{
+  "status": "ok" // 或 "error"
+}
+六、安全认证
+1. Token认证
+每个设备在注册时会获得一个唯一的认证Token，后续的API请求都需要携带这个Token进行身份验证。
+在API层的每个处理函数中，检查请求头中的Token是否有效，如果无效则返回401 Unauthorized错误。
+2. 数据加密
+使用AES-256加密算法对所有传输的数据进行加密，确保数据的安全性。
+在发送和接收数据时，使用相同的密钥进行加密和解密。
+3. 日志审计
+记录所有API请求和关键操作的日志，方便后续的安全审计和问题排查。可以使用日志框架（如logrus或zap）来实现日志记录，并将日志存储到本地文件或远程日志服务器。
+七、目录结构
+mingda_ai_help/
+├── cmd
+│   └── main.go // 应用程序入口点
+├── config
+│   ├── config.yaml // 配置文件模板
+│   └── config.go   // 配置加载逻辑
+├── handlers
+│   ├── api.go      // API路由定义
+│   └── handler.go  // API处理函数
+├── models
+│   ├── machine.go  // 机型信息模型
+│   ├── setting.go  // 用户设置模型
+│   └── prediction.go // 预测结果模型
+├── services
+│   ├── ai_service.go // AI服务调用逻辑
+│   ├── db_service.go // 数据库操作逻辑
+│   └── log_service.go // 日志记录逻辑
+├── utils
+│   ├── jwt.go       // JWT相关工具函数
+│   └── utils.go     // 其他辅助函数
+└── go.mod          // Go模块依赖管理文件

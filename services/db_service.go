@@ -46,24 +46,16 @@ func (s *DBService) DB() *gorm.DB {
 }
 
 func (s *DBService) SaveMachineInfo(info *models.MachineInfo) error {
-	query := `INSERT INTO machine_info (machine_sn, machine_model, auth_token) 
-			  VALUES (?, ?, ?)`
-	_, err := s.db.Exec(query, info.MachineSN, info.MachineModel, info.AuthToken)
-	return err
+	result := s.db.Create(info)
+	return result.Error
 }
 
 func (s *DBService) SaveUserSettings(settings *models.UserSettings) error {
-	query := `INSERT INTO user_settings (enable_ai, enable_cloud_ai, confidence_threshold, pause_on_threshold) 
-			  VALUES (?, ?, ?, ?)`
-	_, err := s.db.Exec(query, settings.EnableAI, settings.EnableCloudAI, 
-						settings.ConfidenceThreshold, settings.PauseOnThreshold)
-	return err
+	result := s.db.Create(settings)
+	return result.Error
 }
 
 func (s *DBService) SavePredictionResult(result *models.PredictionResult) error {
-	query := `INSERT INTO prediction_results (task_id, prediction_status, prediction_model, 
-			  has_defect, defect_type, confidence) VALUES (?, ?, ?, ?, ?, ?)`
-	_, err := s.db.Exec(query, result.TaskID, result.PredictionStatus, result.PredictionModel,
-						result.HasDefect, result.DefectType, result.Confidence)
-	return err
+	dbResult := s.db.Create(result)
+	return dbResult.Error
 } 

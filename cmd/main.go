@@ -23,7 +23,7 @@ func main() {
 
 	fmt.Println("开始初始化日志服务...")
 	// 初始化日志服务
-	logService, err := services.NewLogService(cfg.Logging)
+	logService, err := services.NewLogService(cfg.Logging.Level, cfg.Logging.File)
 	if err != nil {
 		log.Fatalf("初始化日志服务失败: %v", err)
 	}
@@ -72,11 +72,7 @@ func main() {
 
 	fmt.Println("开始初始化Moonraker客户端...")
 	// 初始化Moonraker客户端
-	moonrakerClient, err := services.NewMoonrakerClient(cfg.Moonraker)
-	if err != nil {
-		logService.Error("初始化Moonraker客户端失败", "error", err)
-		os.Exit(1)
-	}
+	moonrakerClient := services.NewMoonrakerClient(cfg.Moonraker, logService)
 	fmt.Println("Moonraker客户端初始化成功")
 
 	fmt.Println("开始初始化监控服务...")

@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"sync"
+	"time"
 )
 
 // MonitorService 监控服务
@@ -65,11 +66,14 @@ func (s *MonitorService) Stop() {
 
 // monitor 监控打印状态
 func (s *MonitorService) monitor() {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
 	for {
 		select {
 		case <-s.ctx.Done():
 			return
-		default:
+		case <-ticker.C:
 			// TODO: 实现具体的监控逻辑
 			// 1. 获取打印状态
 			// 2. 如果正在打印，获取摄像头图像

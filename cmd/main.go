@@ -35,7 +35,7 @@ func main() {
 	defer dbService.Close()
 
 	// 获取设备信息
-	machine, err := models.GetMachine(dbService.DB())
+	machineInfo, err := models.GetMachineInfo(dbService.DB())
 	if err != nil {
 		logService.Error("获取设备信息失败", "error", err)
 		os.Exit(1)
@@ -43,8 +43,8 @@ func main() {
 
 	// 打印配置信息
 	logService.Info("设备信息",
-		"型号", machine.Model,
-		"SN码", machine.SN)
+		"型号", machineInfo.MachineModel,
+		"SN码", machineInfo.MachineSN)
 	
 	logService.Info("Moonraker配置",
 		"地址", fmt.Sprintf("%s:%d", cfg.Moonraker.Host, cfg.Moonraker.Port))
@@ -54,7 +54,7 @@ func main() {
 		"云端AI", cfg.AI.Cloud.Enabled)
 
 	// 初始化AI服务
-	aiService, err := services.NewAIService(cfg.AI, machine.Token)
+	aiService, err := services.NewAIService(cfg.AI, machineInfo.AuthToken)
 	if err != nil {
 		logService.Error("初始化AI服务失败", "error", err)
 		os.Exit(1)

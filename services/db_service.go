@@ -27,7 +27,9 @@ func NewDBService(dbPath string) (*DBService, error) {
 func (s *DBService) initTables() error {
 	// 自动迁移表结构
 	return s.db.AutoMigrate(
-		&models.Machine{},
+		&models.MachineInfo{},
+		&models.UserSettings{},
+		&models.PredictionResult{},
 	)
 }
 

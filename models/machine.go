@@ -2,6 +2,7 @@ package models
 
 import (
 	"time"
+	"gorm.io/gorm"
 )
 
 // Machine 设备信息模型

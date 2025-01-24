@@ -5,7 +5,7 @@ moonraker:
 ai:
   local:
     enabled: true
-    model_path: "./models/local_model"
+    model_path: "http://localhost:5000"
   cloud:
     enabled: true
     endpoint: "https://ai.mingda3d.com"

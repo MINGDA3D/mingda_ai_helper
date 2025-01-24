@@ -57,42 +57,40 @@ type LoggingConfig struct {
 
 // LoadConfig 加载配置文件
 func LoadConfig() (*Config, error) {
-	// 获取可执行文件所在目录
-	exePath, err := os.Executable()
-	if err != nil {
-		return nil, fmt.Errorf("获取可执行文件路径失败: %v", err)
-	}
-	exeDir := filepath.Dir(exePath)
-
+	fmt.Println("开始设置配置文件路径...")
+	
 	// 设置配置文件的查找路径
-	viper.AddConfigPath(exeDir)           // 可执行文件目录
 	viper.AddConfigPath("config")         // 相对于工作目录的config目录
-	viper.AddConfigPath("../config")      // 上级目录的config目录
 	viper.AddConfigPath(".")              // 当前工作目录
-
 	viper.SetConfigName("config")         // 配置文件名（不带扩展名）
 	viper.SetConfigType("yaml")           // 配置文件类型
 
+	fmt.Println("尝试读取配置文件...")
 	// 读取配置文件
 	if err := viper.ReadInConfig(); err != nil {
 		return nil, fmt.Errorf("读取配置文件失败: %v", err)
 	}
+	fmt.Printf("成功读取配置文件: %s\n", viper.ConfigFileUsed())
 
+	fmt.Println("开始解析配置文件...")
 	var config Config
 	if err := viper.Unmarshal(&config); err != nil {
 		return nil, fmt.Errorf("解析配置文件失败: %v", err)
 	}
 
+	fmt.Println("开始验证配置项...")
 	// 验证必要的配置项
 	if err := validateConfig(&config); err != nil {
 		return nil, err
 	}
 
+	fmt.Println("开始创建必要目录...")
 	// 创建必要的目录
 	if err := createRequiredDirectories(&config); err != nil {
 		return nil, err
 	}
 
+	fmt.Println("配置加载完成")
 	return &config, nil
 }
 
@@ -121,13 +119,6 @@ func createRequiredDirectories(config *Config) error {
 	// 创建日志目录
 	if err := os.MkdirAll(filepath.Dir(config.Logging.File), 0755); err != nil {
 		return fmt.Errorf("创建日志目录失败: %v", err)
-	}
-
-	// 如果启用了本地AI，创建模型目录
-	if config.AI.Local.Enabled {
-		if err := os.MkdirAll(config.AI.Local.ModelPath, 0755); err != nil {
-			return fmt.Errorf("创建AI模型目录失败: %v", err)
-		}
 	}
 
 	return nil

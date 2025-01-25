@@ -4,6 +4,8 @@ import (
 	"context"
 	"sync"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 // MonitorService 监控服务
@@ -42,7 +44,7 @@ func (s *MonitorService) Start() error {
 	
 	// 连接到 Moonraker
 	if err := s.moonrakerClient.Connect(); err != nil {
-		s.logService.Error("连接Moonraker失败", "error", err)
+		s.logService.Error("连接Moonraker失败", zap.Error(err))
 		return err
 	}
 	

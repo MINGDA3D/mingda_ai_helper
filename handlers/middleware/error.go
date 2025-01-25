@@ -2,7 +2,7 @@ package middleware
 
 import (
 	"github.com/gin-gonic/gin"
-	"mingda_ai_helper/handlers"
+	"mingda_ai_helper/pkg/response"
 	"mingda_ai_helper/services"
 	"runtime/debug"
 )
@@ -17,7 +17,7 @@ func ErrorHandler(logService *services.LogService) gin.HandlerFunc {
 				logService.Error("Panic recovered", "error", err, "stack", stack)
 				
 				// 返回500错误
-				handlers.ServerError(c, "Internal server error")
+				response.ServerError(c, "Internal server error")
 				c.Abort()
 			}
 		}()

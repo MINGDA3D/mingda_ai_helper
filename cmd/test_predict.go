@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"log"
 	"mingda_ai_helper/config"
+	"mingda_ai_helper/handlers"
 	"mingda_ai_helper/services"
 	"net"
+	"net/http"
 	"time"
 )
 
@@ -38,6 +40,22 @@ func printJSON(label string, v interface{}) {
 	fmt.Printf("%s:\n%s\n", label, string(data))
 }
 
+func startCallbackServer(dbService *services.DBService, logService *services.LogService) {
+	// 设置路由
+	router := handlers.SetupRouter(nil, dbService, logService)
+
+	// 在新的goroutine中启动服务器
+	go func() {
+		fmt.Println("启动回调服务器在 :8081 端口")
+		if err := router.Run(":8081"); err != nil {
+			log.Fatalf("启动回调服务器失败: %v", err)
+		}
+	}()
+
+	// 等待服务器启动
+	time.Sleep(1 * time.Second)
+}
+
 func main() {
 	// 获取局域网IP
 	localIP, err := getLocalIP()
@@ -52,14 +70,23 @@ func main() {
 		log.Fatalf("加载配置文件失败: %v", err)
 	}
 
+	// 初始化日志服务
+	logService, err := services.NewLogService(cfg.Logging.Level, cfg.Logging.File)
+	if err != nil {
+		log.Fatalf("初始化日志服务失败: %v", err)
+	}
+
 	// 初始化数据库服务
 	dbService, err := services.NewDBService(cfg.Database.Path)
 	if err != nil {
 		log.Fatalf("初始化数据库服务失败: %v", err)
 	}
 
+	// 启动回调服务器
+	startCallbackServer(dbService, logService)
+
 	// 初始化本地AI服务
-	aiServerURL := "http://localhost:5000/api/v1/predict"  // AI服务地址
+	aiServerURL := "http://localhost:5000"  // AI服务地址
 	callbackURL := "http://localhost:8081/api/v1/ai/callback"  // 回调地址使用8081端口
 	aiService := services.NewLocalAIService(aiServerURL, callbackURL, dbService)
 

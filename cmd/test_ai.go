@@ -69,6 +69,21 @@ func getSnapshot(url string, savePath string) error {
 	return nil
 }
 
+func startCallbackServer(dbService *services.DBService, logService *services.LogService) {
+	// 设置路由
+	router := handlers.SetupRouter(nil, dbService, logService)
+
+	// 在新的goroutine中启动服务器
+	go func() {
+		fmt.Println("启动回调服务器在 :8081 端口")
+		if err := router.Run(":8081"); err != nil {
+			log.Fatalf("启动回调服务器失败: %v", err)
+		}
+	}()
+
+	// 等待服务器启动
+	time.Sleep(1 * time.Second)
+}
 func main() {
 	// 加载配置
 	cfg, err := config.LoadConfig("../config/config.yaml")
@@ -81,6 +96,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("初始化数据库服务失败: %v", err)
 	}
+
+	// 启动回调服务器
+	startCallbackServer(dbService, logService)
 
 	// 创建云端AI服务实例
 	cloudAI := services.NewCloudAIService(cfg.AI.CloudURL, dbService)
@@ -122,4 +140,22 @@ func main() {
 	fmt.Printf("任务ID: %s\n", result.TaskID)
 	fmt.Printf("预测状态: %d\n", result.PredictionStatus)
 	fmt.Printf("预测模型: %s\n", result.PredictionModel)
+
+		// 等待30秒，让回调有时间处理
+		time.Sleep(30 * time.Second)
+
+		// 查询最终结果
+		finalResult, err := dbService.GetPredictionResult(taskID)
+		if err != nil {
+			log.Fatalf("获取预测结果失败: %v", err)
+		}
+	
+		fmt.Printf("\n=== 最终预测结果 ===\n")
+		printJSON("结果", finalResult)
+	
+		// 打印状态说明
+		fmt.Printf("\n状态说明：\n")
+		fmt.Printf("0: 等待处理\n")
+		fmt.Printf("1: 处理中\n")
+		fmt.Printf("2: 处理完成\n")
 } 

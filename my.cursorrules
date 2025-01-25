@@ -165,3 +165,5 @@ mingda_ai_help/
 │   ├── jwt.go       // JWT相关工具函数
 │   └── utils.go     // 其他辅助函数
 └── go.mod          // Go模块依赖管理文件
+
+Windows开发环境，请不要尝试运行shell脚本，请把需要执行的命令打印出来即可

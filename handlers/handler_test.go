@@ -15,6 +15,7 @@ import (
 
 	"mingda_ai_helper/models"
 	"mingda_ai_helper/pkg/response"
+	"mingda_ai_helper/services"
 )
 
 // MockDBService 模拟数据库服务
@@ -84,13 +85,16 @@ func (m *MockLogService) Error(msg string, fields ...zap.Field) {
 	m.Called(msg, fields)
 }
 
-// 测试辅助函数
+// setupTestRouter 测试辅助函数
 func setupTestRouter(db *MockDBService, ai *MockAIService, log *MockLogService) *gin.Engine {
 	gin.SetMode(gin.TestMode)
+	// 设置日志服务的通用期望
+	log.On("Info", mock.Anything, mock.Anything).Return()
+	log.On("Error", mock.Anything, mock.Anything).Return()
 	return SetupRouter(ai, db, log)
 }
 
-// 测试健康检查接口
+// TestHealthCheck 测试健康检查接口
 func TestHealthCheck(t *testing.T) {
 	db := new(MockDBService)
 	ai := new(MockAIService)
@@ -109,7 +113,7 @@ func TestHealthCheck(t *testing.T) {
 	assert.Equal(t, "success", resp.Message)
 }
 
-// 测试设备注册接口
+// TestMachineRegister 测试设备注册接口
 func TestMachineRegister(t *testing.T) {
 	db := new(MockDBService)
 	ai := new(MockAIService)
@@ -126,7 +130,6 @@ func TestMachineRegister(t *testing.T) {
 
 	// 设置Mock期望
 	db.On("SaveMachineInfo", mock.AnythingOfType("*models.MachineInfo")).Return(nil)
-	log.On("Error", mock.Anything, mock.Anything).Return()
 
 	// 发送请求
 	w := httptest.NewRecorder()
@@ -143,7 +146,7 @@ func TestMachineRegister(t *testing.T) {
 	assert.Equal(t, "success", resp.Message)
 }
 
-// 测试设置同步接口
+// TestSettingsSync 测试设置同步接口
 func TestSettingsSync(t *testing.T) {
 	db := new(MockDBService)
 	ai := new(MockAIService)
@@ -161,7 +164,6 @@ func TestSettingsSync(t *testing.T) {
 
 	// 设置Mock期望
 	db.On("SaveUserSettings", mock.AnythingOfType("*models.UserSettings")).Return(nil)
-	log.On("Error", mock.Anything, mock.Anything).Return()
 
 	// 发送请求
 	w := httptest.NewRecorder()
@@ -177,7 +179,7 @@ func TestSettingsSync(t *testing.T) {
 	assert.Equal(t, 0, resp.Code)
 }
 
-// 测试预测请求接口
+// TestPredict 测试预测请求接口
 func TestPredict(t *testing.T) {
 	db := new(MockDBService)
 	ai := new(MockAIService)
@@ -194,7 +196,6 @@ func TestPredict(t *testing.T) {
 
 	// 设置Mock期望
 	db.On("SavePredictionResult", mock.AnythingOfType("*models.PredictionResult")).Return(nil)
-	log.On("Error", mock.Anything, mock.Anything).Return()
 
 	// 发送请求
 	w := httptest.NewRecorder()
@@ -215,7 +216,7 @@ func TestPredict(t *testing.T) {
 	assert.Equal(t, "TASK001", data["task_id"])
 }
 
-// 测试AI回调接口
+// TestAICallback 测试AI回调接口
 func TestAICallback(t *testing.T) {
 	db := new(MockDBService)
 	ai := new(MockAIService)
@@ -239,8 +240,6 @@ func TestAICallback(t *testing.T) {
 		ConfidenceThreshold: 90,
 		PauseOnThreshold:   true,
 	}, nil)
-	log.On("Error", mock.Anything, mock.Anything).Return()
-	log.On("Info", mock.Anything, mock.Anything).Return()
 
 	// 发送请求
 	w := httptest.NewRecorder()
@@ -256,7 +255,7 @@ func TestAICallback(t *testing.T) {
 	assert.Equal(t, 0, resp.Code)
 }
 
-// 测试参数验证错误
+// TestValidationErrors 测试参数验证错误
 func TestValidationErrors(t *testing.T) {
 	db := new(MockDBService)
 	ai := new(MockAIService)

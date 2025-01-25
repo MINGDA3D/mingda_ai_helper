@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"mingda_ai_helper/config"
+	"mingda_ai_helper/handlers"
 	"mingda_ai_helper/models"
 	"mingda_ai_helper/services"
 	"os"
@@ -23,9 +24,10 @@ func ensureDBDirectory(dbPath string) error {
 func testMachineInfo(dbService *services.DBService) error {
 	fmt.Println("\n=== 测试机器信息 ===")
 	machineInfo := &models.MachineInfo{
-		MachineSN:    "TEST001",
-		MachineModel: "MingDa-D2",
-		AuthToken:    "test-token-123",
+		MachineSN:    "M1P2004A1154004",
+		MachineModel: "MD-400D",
+		AuthToken:    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkZXZpY2VfaWQiOjExNDcsImRldmljZV9zbiI6Ik0xUDIwMDRBMTE1NDAwNCIsImV4cCI6MTczNzg3NzIwNSwiaWF0IjoxNzM3NzkwODA1LCJpc3MiOiJtaW5nZGEtY2xvdWQifQ.Gf6DjPR0w1boT0TtWEyMuUTXCoJOpMyUDj0-nWw3mDM",
+
 	}
 	
 	if err := dbService.SaveMachineInfo(machineInfo); err != nil {

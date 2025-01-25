@@ -17,19 +17,22 @@ import (
 
 // PrinterStatus 打印机状态
 type PrinterStatus struct {
-	State      string  `json:"state"`
-	Message    string  `json:"message"`
-	Progress   float64 `json:"progress"`
-	Temperature struct {
-		Tool0 struct {
-			Actual float64 `json:"actual"`
-			Target float64 `json:"target"`
-		} `json:"tool0"`
-		Bed struct {
-			Actual float64 `json:"actual"`
-			Target float64 `json:"target"`
-		} `json:"bed"`
-	} `json:"temperature"`
+	Webhooks struct {
+		State   string `json:"state"`
+		Message string `json:"message"`
+	} `json:"webhooks"`
+	VirtualSdcard struct {
+		Progress          float64 `json:"progress"`
+		IsActive         bool    `json:"is_active"`
+		FilePosition     int     `json:"file_position"`
+	} `json:"virtual_sdcard"`
+	PrintStats struct {
+		Filename     string  `json:"filename"`
+		TotalDuration float64 `json:"total_duration"`
+		PrintDuration float64 `json:"print_duration"`
+		State        string  `json:"state"`
+		Message      string  `json:"message"`
+	} `json:"print_stats"`
 }
 
 // MoonrakerClient Moonraker客户端
@@ -171,7 +174,7 @@ func (c *MoonrakerClient) heartbeat() {
 
 // GetPrinterStatus 获取打印机状态
 func (c *MoonrakerClient) GetPrinterStatus() (*PrinterStatus, error) {
-	resp, err := c.httpClient.Get(c.baseURL + "/printer/objects/query?print_stats&extruder&heater_bed")
+	resp, err := c.httpClient.Get(c.baseURL + "/printer/objects/query?webhooks&virtual_sdcard&print_stats")
 	if err != nil {
 		return nil, fmt.Errorf("获取打印机状态失败: %v", err)
 	}
@@ -188,7 +191,24 @@ func (c *MoonrakerClient) GetPrinterStatus() (*PrinterStatus, error) {
 
 	var result struct {
 		Result struct {
-			Status PrinterStatus `json:"status"`
+			Status struct {
+				Webhooks      struct {
+					State   string `json:"state"`
+					Message string `json:"message"`
+				} `json:"webhooks"`
+				VirtualSdcard struct {
+					Progress      float64 `json:"progress"`
+					IsActive     bool    `json:"is_active"`
+					FilePosition int     `json:"file_position"`
+				} `json:"virtual_sdcard"`
+				PrintStats   struct {
+					Filename     string  `json:"filename"`
+					TotalDuration float64 `json:"total_duration"`
+					PrintDuration float64 `json:"print_duration"`
+					State        string  `json:"state"`
+					Message      string  `json:"message"`
+				} `json:"print_stats"`
+			} `json:"status"`
 		} `json:"result"`
 	}
 
@@ -196,7 +216,13 @@ func (c *MoonrakerClient) GetPrinterStatus() (*PrinterStatus, error) {
 		return nil, fmt.Errorf("解析响应失败: %v", err)
 	}
 
-	return &result.Result.Status, nil
+	status := &PrinterStatus{
+		Webhooks:      result.Result.Status.Webhooks,
+		VirtualSdcard: result.Result.Status.VirtualSdcard,
+		PrintStats:    result.Result.Status.PrintStats,
+	}
+
+	return status, nil
 }
 
 // PausePrint 暂停打印

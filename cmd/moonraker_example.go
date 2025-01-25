@@ -50,25 +50,25 @@ func main() {
 	}
 
 	// 打印状态信息
-	fmt.Printf("打印机状态: %s\n", status.State)
-	fmt.Printf("打印机消息: %s\n", status.Message)
-	fmt.Printf("喷头温度: %.1f°C (目标: %.1f°C)\n", 
-		status.Temperature.Tool0.Actual, 
-		status.Temperature.Tool0.Target)
-	fmt.Printf("热床温度: %.1f°C (目标: %.1f°C)\n",
-		status.Temperature.Bed.Actual,
-		status.Temperature.Bed.Target)
+	fmt.Printf("打印机连接状态: %s\n", status.Webhooks.State)
+	fmt.Printf("打印机消息: %s\n", status.Webhooks.Message)
+	
+	// 打印进度信息
+	fmt.Printf("打印进度: %.1f%%\n", status.VirtualSdcard.Progress*100)
+	fmt.Printf("是否正在打印: %v\n", status.VirtualSdcard.IsActive)
+	fmt.Printf("文件位置: %d\n", status.VirtualSdcard.FilePosition)
 
-	// 获取打印进度
-	progress, err := client.GetPrintProgress()
-	if err != nil {
-		fmt.Printf("获取打印进度失败: %v\n", err)
-		return
+	// 打印作业信息
+	fmt.Printf("当前文件: %s\n", status.PrintStats.Filename)
+	fmt.Printf("打印状态: %s\n", status.PrintStats.State)
+	fmt.Printf("打印时长: %.1f秒\n", status.PrintStats.PrintDuration)
+	fmt.Printf("总时长: %.1f秒\n", status.PrintStats.TotalDuration)
+	if status.PrintStats.Message != "" {
+		fmt.Printf("状态消息: %s\n", status.PrintStats.Message)
 	}
-	fmt.Printf("打印进度: %.1f%%\n", progress*100)
 
 	// 如果正在打印，尝试暂停打印
-	if status.State == "printing" {
+	if status.PrintStats.State == "printing" {
 		fmt.Println("\n尝试暂停打印...")
 		if err := client.PausePrint(); err != nil {
 			fmt.Printf("暂停打印失败: %v\n", err)
@@ -84,6 +84,6 @@ func main() {
 			fmt.Printf("获取打印机状态失败: %v\n", err)
 			return
 		}
-		fmt.Printf("当前状态: %s\n", status.State)
+		fmt.Printf("当前状态: %s\n", status.PrintStats.State)
 	}
 } 

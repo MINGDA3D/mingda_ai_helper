@@ -14,6 +14,7 @@ type AIService interface {
 	Predict(ctx context.Context, imageURL string, taskID string) (*models.PredictionResult, error)
 }
 
+// PredictRequest AI预测请求结构体
 type PredictRequest struct {
 	ImageURL    string `json:"image_url"`
 	TaskID      string `json:"task_id"`

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"mingda_ai_helper/config"
@@ -28,13 +29,22 @@ func getLocalIP() (string, error) {
 	return "", fmt.Errorf("无法获取局域网IP地址")
 }
 
+func printJSON(label string, v interface{}) {
+	data, err := json.MarshalIndent(v, "", "    ")
+	if err != nil {
+		fmt.Printf("%s: 错误 - %v\n", label, err)
+		return
+	}
+	fmt.Printf("%s:\n%s\n", label, string(data))
+}
+
 func main() {
 	// 获取局域网IP
 	localIP, err := getLocalIP()
 	if err != nil {
 		log.Fatalf("获取局域网IP失败: %v", err)
 	}
-	fmt.Printf("局域网IP地址: %s\n", localIP)
+	fmt.Printf("局域网IP地址: %s\n\n", localIP)
 
 	// 加载配置文件
 	cfg, err := config.LoadConfig("config/config.yaml")
@@ -49,8 +59,8 @@ func main() {
 	}
 
 	// 初始化本地AI服务
-	aiServerURL := "http://localhost:5000"  // AI服务地址
-	callbackURL := fmt.Sprintf("http://localhost:8081/api/v1/ai/callback", localIP)  // 回调地址使用8081端口
+	aiServerURL := "http://localhost:5000/api/v1/predict"  // AI服务地址
+	callbackURL := "http://localhost:8081/api/v1/ai/callback"  // 回调地址使用8081端口
 	aiService := services.NewLocalAIService(aiServerURL, callbackURL, dbService)
 
 	// 生成任务ID
@@ -59,11 +69,16 @@ func main() {
 	// 构造图片URL（使用实际IP）
 	imageURL := fmt.Sprintf("http://%s/webcam/?action=snapshot", localIP)
 
-	fmt.Printf("\n开始发送预测请求:\n")
+	// 构造预测请求
+	predictRequest := services.PredictRequest{
+		ImageURL:    imageURL,
+		TaskID:      taskID,
+		CallbackURL: callbackURL,
+	}
+
+	fmt.Printf("=== 发送预测请求 ===\n")
 	fmt.Printf("AI服务地址: %s\n", aiServerURL)
-	fmt.Printf("TaskID: %s\n", taskID)
-	fmt.Printf("ImageURL: %s\n", imageURL)
-	fmt.Printf("CallbackURL: %s\n", callbackURL)
+	printJSON("请求内容", predictRequest)
 
 	// 发送预测请求
 	result, err := aiService.Predict(context.Background(), imageURL, taskID)
@@ -71,8 +86,9 @@ func main() {
 		log.Fatalf("发送预测请求失败: %v", err)
 	}
 
-	fmt.Printf("\n预测请求已发送，初始结果: %+v\n", result)
-	fmt.Println("等待AI服务回调...")
+	fmt.Printf("\n=== 初始预测结果 ===\n")
+	printJSON("结果", result)
+	fmt.Println("\n等待AI服务回调...")
 
 	// 等待30秒，让回调有时间处理
 	time.Sleep(30 * time.Second)
@@ -83,11 +99,12 @@ func main() {
 		log.Fatalf("获取预测结果失败: %v", err)
 	}
 
-	fmt.Printf("\n最终预测结果:\n")
-	fmt.Printf("TaskID: %s\n", finalResult.TaskID)
-	fmt.Printf("状态: %v\n", finalResult.PredictionStatus)
-	fmt.Printf("模型: %s\n", finalResult.PredictionModel)
-	fmt.Printf("是否有缺陷: %v\n", finalResult.HasDefect)
-	fmt.Printf("缺陷类型: %s\n", finalResult.DefectType)
-	fmt.Printf("置信度: %.2f%%\n", finalResult.Confidence)
+	fmt.Printf("\n=== 最终预测结果 ===\n")
+	printJSON("结果", finalResult)
+
+	// 打印状态说明
+	fmt.Printf("\n状态说明：\n")
+	fmt.Printf("0: 等待处理\n")
+	fmt.Printf("1: 处理中\n")
+	fmt.Printf("2: 处理完成\n")
 } 

@@ -3,20 +3,16 @@ moonraker:
   port: 7125
   
 ai:
-  local:
-    enabled: true
-    model_path: "http://localhost:5000"
-  cloud:
-    enabled: true
-    endpoint: "https://ai.mingda3d.com"
-    timeout: 30 # 请求超时时间(秒)
+  local_url: "http://localhost:5000"
+  cloud_url: "http://ai.mingda3d.com"
+  timeout: 30 # 请求超时时间(秒)
 
 database:
-  path: "./data/mingda_ai.db"
+  path: "~/printer_data/database/printer_data.db"
 
 logging:
   level: "info"  # debug, info, warn, error
-  file: "./logs/app.log"
+  file: "~/printer_data/logs/mingda_ai_helper.log"
   max_size: 100    # 单个日志文件最大尺寸(MB)
   max_backups: 3   # 保留的旧日志文件个数
   max_age: 28      # 日志文件保留天数 

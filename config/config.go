@@ -24,21 +24,9 @@ type MoonrakerConfig struct {
 
 // AIConfig AI服务配置
 type AIConfig struct {
-	Local  LocalAIConfig  `mapstructure:"local"`
-	Cloud  CloudAIConfig  `mapstructure:"cloud"`
-}
-
-// LocalAIConfig 本地AI配置
-type LocalAIConfig struct {
-	Enabled   bool   `mapstructure:"enabled"`
-	ModelPath string `mapstructure:"model_path"`
-}
-
-// CloudAIConfig 云端AI配置
-type CloudAIConfig struct {
-	Enabled  bool   `mapstructure:"enabled"`
-	Endpoint string `mapstructure:"endpoint"`
-	Timeout  int    `mapstructure:"timeout"`
+	LocalURL  string `mapstructure:"local_url"`
+	CloudURL  string `mapstructure:"cloud_url"`
+	Timeout   int    `mapstructure:"timeout"`
 }
 
 // DatabaseConfig 数据库配置
@@ -102,8 +90,8 @@ func validateConfig(config *Config) error {
 	}
 
 	// 验证AI配置
-	if !config.AI.Local.Enabled && !config.AI.Cloud.Enabled {
-		return fmt.Errorf("本地AI和云端AI至少需要启用一个")
+	if config.AI.Timeout <= 0 {
+		return fmt.Errorf("无效的AI超时时间: %d", config.AI.Timeout)
 	}
 
 	return nil

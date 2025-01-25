@@ -5,13 +5,18 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"mime/multipart"
 	"mingda_ai_helper/models"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 )
 
 type AIService interface {
 	Predict(ctx context.Context, imageURL string, taskID string) (*models.PredictionResult, error)
+	PredictWithFile(ctx context.Context, imagePath string) (*models.PredictionResult, error)
 }
 
 // PredictRequest AI预测请求结构体
@@ -29,8 +34,9 @@ type LocalAIService struct {
 }
 
 type CloudAIService struct {
-	endpoint string
-	apiKey   string
+	baseURL    string
+	dbService  *DBService
+	httpClient *http.Client
 }
 
 func NewLocalAIService(localURL, callbackURL string, dbService *DBService) *LocalAIService {
@@ -44,10 +50,13 @@ func NewLocalAIService(localURL, callbackURL string, dbService *DBService) *Loca
 	}
 }
 
-func NewCloudAIService(endpoint, apiKey string) *CloudAIService {
+func NewCloudAIService(cloudURL string, dbService *DBService) *CloudAIService {
 	return &CloudAIService{
-		endpoint: endpoint,
-		apiKey:   apiKey,
+		baseURL: cloudURL + "/api/v1",
+		dbService: dbService,
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
 	}
 }
 
@@ -98,7 +107,122 @@ func (s *LocalAIService) Predict(ctx context.Context, imageURL string, taskID st
 	return result, nil
 }
 
-func (s *CloudAIService) Predict(ctx context.Context, imageURL string, taskID string) (*models.PredictionResult, error) {
-	// TODO: 实现云端AI预测逻辑
+func (s *LocalAIService) PredictWithFile(ctx context.Context, imagePath string) (*models.PredictionResult, error) {
 	return nil, fmt.Errorf("not implemented")
+}
+
+func (s *CloudAIService) Predict(ctx context.Context, imageURL string, taskID string) (*models.PredictionResult, error) {
+	return nil, fmt.Errorf("not implemented for URL-based prediction")
+}
+
+func (s *CloudAIService) PredictWithFile(ctx context.Context, imagePath string) (*models.PredictionResult, error) {
+	// 获取机器信息和认证令牌
+	machineInfo, err := s.dbService.GetMachineInfo()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get machine info: %v", err)
+	}
+	if machineInfo == nil {
+		return nil, fmt.Errorf("machine info not found")
+	}
+
+	// 生成任务ID
+	if imagePath == "" {
+		return nil, fmt.Errorf("image path is required")
+	}
+
+	taskID := fmt.Sprintf("PT%s", time.Now().Format("20060102150405"))
+
+	// 检查文件是否存在
+	if _, err := os.Stat(imagePath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("image file not found: %s", imagePath)
+	}
+
+	// 打开文件
+	file, err := os.Open(imagePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open image file: %v", err)
+	}
+	defer file.Close()
+
+	// 准备multipart表单
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+
+	// 添加文件
+	part, err := writer.CreateFormFile("file", filepath.Base(imagePath))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create form file: %v", err)
+	}
+	if _, err = io.Copy(part, file); err != nil {
+		return nil, fmt.Errorf("failed to copy file content: %v", err)
+	}
+
+	// 添加task_id
+	if err = writer.WriteField("task_id", taskID); err != nil {
+		return nil, fmt.Errorf("failed to add task_id field: %v", err)
+	}
+
+	if err = writer.Close(); err != nil {
+		return nil, fmt.Errorf("failed to close writer: %v", err)
+	}
+
+	// 创建上传请求
+	req, err := http.NewRequestWithContext(ctx, "POST", s.baseURL+"/device/print/image", body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %v", err)
+	}
+
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Authorization", "Bearer "+machineInfo.AuthToken)
+
+	// 发送请求
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// 解析响应
+	var result struct {
+		Code int    `json:"code"`
+		Msg  string `json:"msg"`
+		Data interface{} `json:"data"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %v", err)
+	}
+
+	if result.Code != 200 {
+		return nil, fmt.Errorf("upload failed: %s", result.Msg)
+	}
+
+	// 查询预测状态
+	statusReq, err := http.NewRequestWithContext(ctx, "GET", 
+		fmt.Sprintf("%s/device/print/images?task_id=%s", s.baseURL, taskID), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create status request: %v", err)
+	}
+
+	statusReq.Header.Set("Authorization", "Bearer "+machineInfo.AuthToken)
+	
+	statusResp, err := s.httpClient.Do(statusReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get status: %v", err)
+	}
+	defer statusResp.Body.Close()
+
+	// 创建预测结果
+	predictionResult := &models.PredictionResult{
+		TaskID:           taskID,
+		PredictionStatus: models.StatusProcessing,
+		PredictionModel:  "cloud_ai",
+	}
+
+	// 保存预测结果到数据库
+	if err := s.dbService.SavePredictionResult(predictionResult); err != nil {
+		return nil, fmt.Errorf("failed to save prediction result: %v", err)
+	}
+
+	return predictionResult, nil
 } 

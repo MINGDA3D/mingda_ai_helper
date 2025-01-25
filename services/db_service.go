@@ -83,12 +83,17 @@ func (s *DBService) GetUserSettings() (*models.UserSettings, error) {
 }
 
 func (s *DBService) SaveUserSettings(settings *models.UserSettings) error {
-	var count int64
-	s.db.Model(&models.UserSettings{}).Count(&count)
-	if count > 0 {
-		return s.db.Model(&models.UserSettings{}).Updates(settings).Error
+	var existingSettings models.UserSettings
+	result := s.db.First(&existingSettings)
+	if result.Error == nil {
+		// 如果记录存在，更新它
+		return s.db.Model(&existingSettings).Updates(settings).Error
+	} else if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		// 如果记录不存在，创建新记录
+		return s.db.Create(settings).Error
 	}
-	return s.db.Create(settings).Error
+	// 其他错误
+	return result.Error
 }
 
 // 预测结果相关操作

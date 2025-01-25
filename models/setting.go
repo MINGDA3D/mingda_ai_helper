@@ -7,10 +7,10 @@ import (
 // UserSettings 用户设置模型
 type UserSettings struct {
 	gorm.Model
-	EnableAI             bool `gorm:"column:enable_ai;not null"`
-	EnableCloudAI        bool `gorm:"column:enable_cloud_ai;not null"`
-	ConfidenceThreshold  int  `gorm:"column:confidence_threshold;not null;check:confidence_threshold BETWEEN 0 AND 100"`
-	PauseOnThreshold    bool `gorm:"column:pause_on_threshold;not null"`
+	EnableAI             bool `gorm:"column:enable_ai;not null" json:"enable_ai"`
+	EnableCloudAI        bool `gorm:"column:enable_cloud_ai;not null" json:"enable_cloud_ai"`
+	ConfidenceThreshold  int  `gorm:"column:confidence_threshold;not null;check:confidence_threshold BETWEEN 0 AND 100" json:"confidence_threshold"`
+	PauseOnThreshold    bool `gorm:"column:pause_on_threshold;not null" json:"pause_on_threshold"`
 }
 
 // TableName 指定表名

@@ -9,7 +9,7 @@ import (
 )
 
 // ErrorHandler 错误处理中间件
-func ErrorHandler(logService *services.LogService) gin.HandlerFunc {
+func ErrorHandler(logService services.LogInterface) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {
 			if err := recover(); err != nil {
@@ -30,7 +30,7 @@ func ErrorHandler(logService *services.LogService) gin.HandlerFunc {
 }
 
 // RequestLogger 请求日志中间件
-func RequestLogger(logService *services.LogService) gin.HandlerFunc {
+func RequestLogger(logService services.LogInterface) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// 请求前记录
 		logService.Info("Request received",

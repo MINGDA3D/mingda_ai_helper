@@ -6,7 +6,6 @@ import (
 	"mingda_ai_helper/models"
 	"mingda_ai_helper/pkg/response"
 	"mingda_ai_helper/services"
-	"mingda_ai_helper/utils"
 )
 
 // HealthCheck 健康检查
@@ -194,35 +193,4 @@ func PrinterPause(log services.LogInterface) gin.HandlerFunc {
 
 		response.Success(c, gin.H{"status": "ok"})
 	}
-}
-
-// SetupRouter 设置路由
-func SetupRouter(ai services.AIService, db services.DBInterface, log services.LogInterface) *gin.Engine {
-	router := gin.Default()
-	
-	v1 := router.Group("/api/v1")
-	{
-		// 健康检查
-		v1.GET("/ai/health", HealthCheck)
-
-		// 设备注册
-		v1.POST("/machine/register", MachineRegister(db, log))
-
-		// Token刷新
-		v1.POST("/token/refresh", TokenRefresh(db, log))
-
-		// 设置同步
-		v1.POST("/settings/sync", SettingsSync(db, log))
-
-		// AI预测
-		v1.POST("/predict", Predict(ai, db, log))
-
-		// AI回调
-		v1.POST("/ai/callback", AICallback(db, log))
-
-		// 打印机暂停
-		v1.POST("/printer/pause", PrinterPause(log))
-	}
-
-	return router
 } 

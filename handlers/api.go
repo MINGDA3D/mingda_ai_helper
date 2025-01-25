@@ -8,8 +8,8 @@ import (
 
 func SetupRouter(
 	aiService services.AIService,
-	dbService *services.DBService,
-	logService *services.LogService,
+	dbService services.DBInterface,
+	logService services.LogInterface,
 ) *gin.Engine {
 	router := gin.New() // 使用gin.New()而不是Default()以自定义中间件
 

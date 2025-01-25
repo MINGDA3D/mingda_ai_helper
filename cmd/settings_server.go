@@ -11,7 +11,7 @@ import (
 
 func main() {
 	// 初始化数据库服务
-	dbService, err := services.NewDBService("printer_data.db")
+	dbService, err := services.NewDBService("/home/mingda/printer_data/database/printer_data.db")
 	if err != nil {
 		log.Fatalf("初始化数据库服务失败: %v", err)
 	}

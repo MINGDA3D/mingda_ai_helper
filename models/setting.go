@@ -26,14 +26,4 @@ func GetUserSettings(db *gorm.DB) (*UserSettings, error) {
 		return nil, result.Error
 	}
 	return &settings, nil
-}
-
-// SaveUserSettings 保存用户设置
-func SaveUserSettings(db *gorm.DB, settings *UserSettings) error {
-	var count int64
-	db.Model(&UserSettings{}).Count(&count)
-	if count > 0 {
-		return db.Model(&UserSettings{}).Updates(settings).Error
-	}
-	return db.Create(settings).Error
 } 

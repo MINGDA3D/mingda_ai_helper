@@ -87,10 +87,21 @@ func (s *DBService) SaveUserSettings(settings *models.UserSettings) error {
 	result := s.db.First(&existingSettings)
 	if result.Error == nil {
 		// 如果记录存在，更新它
-		return s.db.Model(&existingSettings).Updates(settings).Error
+		return s.db.Model(&existingSettings).Updates(map[string]interface{}{
+			"enable_ai":             settings.EnableAI,
+			"enable_cloud_ai":       settings.EnableCloudAI,
+			"confidence_threshold":   settings.ConfidenceThreshold,
+			"pause_on_threshold":    settings.PauseOnThreshold,
+		}).Error
 	} else if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 		// 如果记录不存在，创建新记录
-		return s.db.Create(settings).Error
+		newSettings := &models.UserSettings{
+			EnableAI:            settings.EnableAI,
+			EnableCloudAI:       settings.EnableCloudAI,
+			ConfidenceThreshold: settings.ConfidenceThreshold,
+			PauseOnThreshold:   settings.PauseOnThreshold,
+		}
+		return s.db.Create(newSettings).Error
 	}
 	// 其他错误
 	return result.Error

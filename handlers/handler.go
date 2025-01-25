@@ -15,7 +15,7 @@ func HealthCheck(c *gin.Context) {
 }
 
 // MachineRegister 设备注册
-func MachineRegister(db *services.DBService, log *services.LogService) gin.HandlerFunc {
+func MachineRegister(db services.DBInterface, log services.LogInterface) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req struct {
 			MachineModel string `json:"machine_model" binding:"required"`
@@ -46,7 +46,7 @@ func MachineRegister(db *services.DBService, log *services.LogService) gin.Handl
 }
 
 // TokenRefresh Token刷新
-func TokenRefresh(db *services.DBService, log *services.LogService) gin.HandlerFunc {
+func TokenRefresh(db services.DBInterface, log services.LogInterface) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req struct {
 			MachineSN string `json:"machine_sn" binding:"required"`
@@ -70,7 +70,7 @@ func TokenRefresh(db *services.DBService, log *services.LogService) gin.HandlerF
 }
 
 // SettingsSync 同步用户设置
-func SettingsSync(db *services.DBService, log *services.LogService) gin.HandlerFunc {
+func SettingsSync(db services.DBInterface, log services.LogInterface) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var settings models.UserSettings
 		if err := c.ShouldBindJSON(&settings); err != nil {
@@ -95,7 +95,7 @@ func SettingsSync(db *services.DBService, log *services.LogService) gin.HandlerF
 }
 
 // Predict AI预测请求
-func Predict(ai services.AIService, db *services.DBService, log *services.LogService) gin.HandlerFunc {
+func Predict(ai services.AIService, db services.DBInterface, log services.LogInterface) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req struct {
 			ImageURL    string `json:"image_url" binding:"required,url"`
@@ -139,7 +139,7 @@ func Predict(ai services.AIService, db *services.DBService, log *services.LogSer
 }
 
 // AICallback AI回调处理
-func AICallback(db *services.DBService, log *services.LogService) gin.HandlerFunc {
+func AICallback(db services.DBInterface, log services.LogInterface) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var result models.PredictionResult
 		if err := c.ShouldBindJSON(&result); err != nil {
@@ -178,7 +178,7 @@ func AICallback(db *services.DBService, log *services.LogService) gin.HandlerFun
 }
 
 // PrinterPause 打印机暂停
-func PrinterPause(log *services.LogService) gin.HandlerFunc {
+func PrinterPause(log services.LogInterface) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req struct {
 			MachineSN string `json:"machine_sn" binding:"required"`
@@ -194,4 +194,35 @@ func PrinterPause(log *services.LogService) gin.HandlerFunc {
 
 		response.Success(c, gin.H{"status": "ok"})
 	}
+}
+
+// SetupRouter 设置路由
+func SetupRouter(ai services.AIService, db services.DBInterface, log services.LogInterface) *gin.Engine {
+	router := gin.Default()
+	
+	v1 := router.Group("/api/v1")
+	{
+		// 健康检查
+		v1.GET("/ai/health", HealthCheck)
+
+		// 设备注册
+		v1.POST("/machine/register", MachineRegister(db, log))
+
+		// Token刷新
+		v1.POST("/token/refresh", TokenRefresh(db, log))
+
+		// 设置同步
+		v1.POST("/settings/sync", SettingsSync(db, log))
+
+		// AI预测
+		v1.POST("/predict", Predict(ai, db, log))
+
+		// AI回调
+		v1.POST("/ai/callback", AICallback(db, log))
+
+		// 打印机暂停
+		v1.POST("/printer/pause", PrinterPause(log))
+	}
+
+	return router
 } 

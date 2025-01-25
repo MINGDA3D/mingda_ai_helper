@@ -50,7 +50,7 @@ func main() {
 
 	// 初始化本地AI服务
 	aiServerURL := "http://localhost:5000"  // AI服务地址
-	callbackURL := fmt.Sprintf("http://%s:8081/api/v1/ai/callback", localIP)  // 回调地址使用8081端口
+	callbackURL := fmt.Sprintf("http://localhost:8081/api/v1/ai/callback", localIP)  // 回调地址使用8081端口
 	aiService := services.NewLocalAIService(aiServerURL, callbackURL, dbService)
 
 	// 生成任务ID

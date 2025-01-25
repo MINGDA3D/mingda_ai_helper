@@ -4,6 +4,7 @@ import (
 	"mingda_ai_helper/models"
 	"gorm.io/gorm"
 	"gorm.io/driver/sqlite"
+	"time"
 )
 
 type DBService struct {
@@ -99,7 +100,31 @@ func (s *DBService) GetPredictionResult(taskID string) (*models.PredictionResult
 }
 
 func (s *DBService) SavePredictionResult(result *models.PredictionResult) error {
-	return s.db.Create(result).Error
+	// 检查是否已存在相同taskID的记录
+	var existingResult models.PredictionResult
+	err := s.db.Where("task_id = ?", result.TaskID).First(&existingResult).Error
+	if err == nil {
+		// 如果记录已存在，且新记录的状态比旧记录更新，则更新记录
+		if result.PredictionStatus > existingResult.PredictionStatus {
+			return s.db.Model(&models.PredictionResult{}).
+				Where("task_id = ?", result.TaskID).
+				Updates(map[string]interface{}{
+					"prediction_status": result.PredictionStatus,
+					"prediction_model": result.PredictionModel,
+					"has_defect":      result.HasDefect,
+					"defect_type":     result.DefectType,
+					"confidence":      result.Confidence,
+					"updated_at":      time.Now(),
+				}).Error
+		}
+		// 如果新记录的状态不比旧记录更新，则忽略
+		return nil
+	} else if err == gorm.ErrRecordNotFound {
+		// 如果记录不存在，则创建新记录
+		return s.db.Create(result).Error
+	}
+	// 其他错误直接返回
+	return err
 }
 
 func (s *DBService) UpdatePredictionStatus(taskID string, status models.PredictionStatus) error {

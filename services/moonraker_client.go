@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"go.uber.org/zap"
 	"mingda_ai_helper/config"
 )
 

@@ -44,7 +44,7 @@ type LoggingConfig struct {
 }
 
 // LoadConfig 加载配置文件
-func LoadConfig() (*Config, error) {
+func LoadConfig(configPath string) (*Config, error) {
 	fmt.Println("开始设置配置文件路径...")
 	
 	// 设置配置文件的查找路径

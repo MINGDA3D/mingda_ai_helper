@@ -100,7 +100,7 @@ func testPredictionResults(dbService *services.DBService) error {
 func main() {
 	fmt.Println("开始加载配置文件...")
 	// 加载配置文件
-	cfg, err := config.LoadConfig()
+	cfg, err := config.LoadConfig("config/config.yaml")
 	if err != nil {
 		log.Fatalf("加载配置文件失败: %v", err)
 	}
@@ -134,6 +134,14 @@ func main() {
 	}
 	fmt.Println("数据库目录检查完成")
 
+	// 初始化日志服务
+	fmt.Println("初始化日志服务...")
+	logService, err := services.NewLogService(cfg.Logging.Level, cfg.Logging.File)
+	if err != nil {
+		log.Fatalf("初始化日志服务失败: %v", err)
+	}
+	fmt.Println("日志服务初始化成功")
+
 	// 初始化数据库服务
 	fmt.Println("开始初始化数据库服务...")
 	dbService, err := services.NewDBService(cfg.Database.Path)
@@ -147,21 +155,35 @@ func main() {
 		log.Fatalf("获取数据库实例失败: %v", err)
 	}
 	defer sqlDB.Close()
-
 	fmt.Println("数据库服务初始化成功")
 
-	// 运行测试
-	if err := testMachineInfo(dbService); err != nil {
-		log.Printf("机器信息测试失败: %v", err)
-	}
+	// 初始化Moonraker客户端
+	fmt.Println("初始化Moonraker客户端...")
+	moonrakerClient := services.NewMoonrakerClient(cfg.Moonraker, logService)
+	fmt.Println("Moonraker客户端初始化成功")
 
-	if err := testUserSettings(dbService); err != nil {
-		log.Printf("用户设置测试失败: %v", err)
-	}
+	// 初始化本地AI服务
+	fmt.Println("初始化本地AI服务...")
+	callbackURL := fmt.Sprintf("http://%s:%d/api/v1/ai/callback", cfg.Moonraker.Host, cfg.Moonraker.Port)
+	aiService := services.NewLocalAIService(cfg.AI.LocalURL, callbackURL, dbService)
+	fmt.Println("本地AI服务初始化成功")
 
-	if err := testPredictionResults(dbService); err != nil {
-		log.Printf("预测结果测试失败: %v", err)
+	// 初始化监控服务
+	fmt.Println("初始化监控服务...")
+	monitorService := services.NewMonitorService(moonrakerClient, aiService, dbService, logService)
+	if err := monitorService.Start(); err != nil {
+		log.Fatalf("启动监控服务失败: %v", err)
 	}
+	fmt.Println("监控服务启动成功")
 
-	fmt.Println("\n数据库测试完成")
+	// 设置HTTP路由
+	fmt.Println("设置HTTP路由...")
+	router := handlers.SetupRouter(aiService, dbService, logService)
+	fmt.Println("HTTP路由设置完成")
+
+	// 启动HTTP服务器
+	fmt.Println("启动HTTP服务器...")
+	if err := router.Run(":8080"); err != nil {
+		log.Fatalf("启动HTTP服务器失败: %v", err)
+	}
 } 

@@ -19,6 +19,7 @@ func MachineRegister(db *services.DBService, log *services.LogService) gin.Handl
 		var req struct {
 			MachineModel string `json:"machine_model" binding:"required"`
 			MachineSN    string `json:"machine_sn" binding:"required"`
+			AuthToken    string `json:"auth_token" binding:"required"`
 		}
 
 		if err := c.ShouldBindJSON(&req); err != nil {
@@ -26,27 +27,20 @@ func MachineRegister(db *services.DBService, log *services.LogService) gin.Handl
 			return
 		}
 
-		// 生成认证token
-		token, err := utils.GenerateToken(req.MachineSN)
-		if err != nil {
-			response.ServerError(c, "生成token失败")
-			return
-		}
-
 		// 保存机器信息
 		machine := &models.MachineInfo{
 			MachineSN:    req.MachineSN,
 			MachineModel: req.MachineModel,
-			AuthToken:    token,
+			AuthToken:    req.AuthToken,
 		}
 
 		if err := db.SaveMachineInfo(machine); err != nil {
-			log.Error("保存机器信息失败", "error", err)
+			log.Error("保存机器信息失败", map[string]interface{}{"error": err})
 			response.ServerError(c, "保存机器信息失败")
 			return
 		}
 
-		response.Success(c, gin.H{"auth_token": token})
+		response.Success(c, gin.H{"status": "ok"})
 	}
 }
 
@@ -55,7 +49,7 @@ func TokenRefresh(db *services.DBService, log *services.LogService) gin.HandlerF
 	return func(c *gin.Context) {
 		var req struct {
 			MachineSN string `json:"machine_sn" binding:"required"`
-			OldToken  string `json:"old_token" binding:"required"`
+			NewToken  string `json:"new_token" binding:"required"`
 		}
 
 		if err := c.ShouldBindJSON(&req); err != nil {
@@ -63,27 +57,14 @@ func TokenRefresh(db *services.DBService, log *services.LogService) gin.HandlerF
 			return
 		}
 
-		// 验证旧token
-		if !utils.ValidateToken(req.MachineSN, req.OldToken) {
-			response.UnauthorizedError(c)
-			return
-		}
-
-		// 生成新token
-		newToken, err := utils.GenerateToken(req.MachineSN)
-		if err != nil {
-			response.ServerError(c, "生成新token失败")
-			return
-		}
-
 		// 更新数据库中的token
-		if err := db.UpdateMachineToken(req.MachineSN, newToken); err != nil {
-			log.Error("更新token失败", "error", err)
+		if err := db.UpdateMachineToken(req.MachineSN, req.NewToken); err != nil {
+			log.Error("更新token失败", map[string]interface{}{"error": err})
 			response.ServerError(c, "更新token失败")
 			return
 		}
 
-		response.Success(c, gin.H{"new_token": newToken})
+		response.Success(c, gin.H{"status": "ok"})
 	}
 }
 

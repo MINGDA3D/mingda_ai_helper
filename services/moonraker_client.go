@@ -2,7 +2,10 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"net/url"
 	"sync"
 	"time"
@@ -12,11 +15,30 @@ import (
 	"mingda_ai_helper/config"
 )
 
+// PrinterStatus 打印机状态
+type PrinterStatus struct {
+	State      string  `json:"state"`
+	Message    string  `json:"message"`
+	Progress   float64 `json:"progress"`
+	Temperature struct {
+		Tool0 struct {
+			Actual float64 `json:"actual"`
+			Target float64 `json:"target"`
+		} `json:"tool0"`
+		Bed struct {
+			Actual float64 `json:"actual"`
+			Target float64 `json:"target"`
+		} `json:"bed"`
+	} `json:"temperature"`
+}
+
 // MoonrakerClient Moonraker客户端
 type MoonrakerClient struct {
 	config     config.MoonrakerConfig
 	wsConn     *websocket.Conn
+	httpClient *http.Client
 	logService *LogService
+	baseURL    string
 	
 	ctx        context.Context
 	cancel     context.CancelFunc
@@ -27,11 +49,16 @@ type MoonrakerClient struct {
 // NewMoonrakerClient 创建新的Moonraker客户端
 func NewMoonrakerClient(cfg config.MoonrakerConfig, logService *LogService) *MoonrakerClient {
 	ctx, cancel := context.WithCancel(context.Background())
+	baseURL := fmt.Sprintf("http://%s:%d", cfg.Host, cfg.Port)
 	return &MoonrakerClient{
 		config:     cfg,
 		logService: logService,
 		ctx:        ctx,
 		cancel:     cancel,
+		httpClient: &http.Client{
+			Timeout: 10 * time.Second,
+		},
+		baseURL: baseURL,
 	}
 }
 
@@ -143,13 +170,83 @@ func (c *MoonrakerClient) heartbeat() {
 }
 
 // GetPrinterStatus 获取打印机状态
-func (c *MoonrakerClient) GetPrinterStatus() error {
-	// TODO: 实现获取打印机状态的逻辑
-	return nil
+func (c *MoonrakerClient) GetPrinterStatus() (*PrinterStatus, error) {
+	resp, err := c.httpClient.Get(c.baseURL + "/printer/objects/query?print_stats&extruder&heater_bed")
+	if err != nil {
+		return nil, fmt.Errorf("获取打印机状态失败: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("获取打印机状态失败，状态码: %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("读取响应失败: %v", err)
+	}
+
+	var result struct {
+		Result struct {
+			Status PrinterStatus `json:"status"`
+		} `json:"result"`
+	}
+
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("解析响应失败: %v", err)
+	}
+
+	return &result.Result.Status, nil
 }
 
 // PausePrint 暂停打印
 func (c *MoonrakerClient) PausePrint() error {
-	// TODO: 实现暂停打印的逻辑
+	req, err := http.NewRequest("POST", c.baseURL+"/printer/print/pause", nil)
+	if err != nil {
+		return fmt.Errorf("创建暂停打印请求失败: %v", err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("发送暂停打印请求失败: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("暂停打印失败，状态码: %d", resp.StatusCode)
+	}
+
 	return nil
+}
+
+// GetPrintProgress 获取打印进度
+func (c *MoonrakerClient) GetPrintProgress() (float64, error) {
+	resp, err := c.httpClient.Get(c.baseURL + "/printer/objects/query?print_stats")
+	if err != nil {
+		return 0, fmt.Errorf("获取打印进度失败: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("获取打印进度失败，状态码: %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return 0, fmt.Errorf("读取响应失败: %v", err)
+	}
+
+	var result struct {
+		Result struct {
+			Status struct {
+				Progress float64 `json:"progress"`
+			} `json:"status"`
+		} `json:"result"`
+	}
+
+	if err := json.Unmarshal(body, &result); err != nil {
+		return 0, fmt.Errorf("解析响应失败: %v", err)
+	}
+
+	return result.Result.Status.Progress, nil
 } 

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 	"mingda_ai_helper/models"
 	"mingda_ai_helper/pkg/response"
 	"mingda_ai_helper/services"
@@ -35,7 +36,7 @@ func MachineRegister(db *services.DBService, log *services.LogService) gin.Handl
 		}
 
 		if err := db.SaveMachineInfo(machine); err != nil {
-			log.Error("保存机器信息失败", map[string]interface{}{"error": err})
+			log.Error("保存机器信息失败", zap.Error(err))
 			response.ServerError(c, "保存机器信息失败")
 			return
 		}
@@ -59,7 +60,7 @@ func TokenRefresh(db *services.DBService, log *services.LogService) gin.HandlerF
 
 		// 更新数据库中的token
 		if err := db.UpdateMachineToken(req.MachineSN, req.NewToken); err != nil {
-			log.Error("更新token失败", map[string]interface{}{"error": err})
+			log.Error("更新token失败", zap.Error(err))
 			response.ServerError(c, "更新token失败")
 			return
 		}
@@ -84,7 +85,7 @@ func SettingsSync(db *services.DBService, log *services.LogService) gin.HandlerF
 		}
 
 		if err := db.SaveUserSettings(&settings); err != nil {
-			log.Error("保存用户设置失败", "error", err)
+			log.Error("保存用户设置失败", zap.Error(err))
 			response.ServerError(c, "保存用户设置失败")
 			return
 		}
@@ -115,7 +116,7 @@ func Predict(ai services.AIService, db *services.DBService, log *services.LogSer
 
 		// 保存初始状态
 		if err := db.SavePredictionResult(result); err != nil {
-			log.Error("保存预测任务失败", "error", err)
+			log.Error("保存预测任务失败", zap.Error(err))
 			response.ServerError(c, "保存预测任务失败")
 			return
 		}
@@ -124,12 +125,12 @@ func Predict(ai services.AIService, db *services.DBService, log *services.LogSer
 		go func() {
 			result, err := ai.Predict(c.Request.Context(), req.ImageURL, req.TaskID)
 			if err != nil {
-				log.Error("预测失败", "error", err)
+				log.Error("预测失败", zap.Error(err))
 				return
 			}
 
 			if err := db.SavePredictionResult(result); err != nil {
-				log.Error("保存预测结果失败", "error", err)
+				log.Error("保存预测结果失败", zap.Error(err))
 			}
 		}()
 
@@ -152,7 +153,7 @@ func AICallback(db *services.DBService, log *services.LogService) gin.HandlerFun
 		}
 
 		if err := db.SavePredictionResult(&result); err != nil {
-			log.Error("保存预测结果失败", "error", err)
+			log.Error("保存预测结果失败", zap.Error(err))
 			response.ServerError(c, "保存预测结果失败")
 			return
 		}
@@ -160,14 +161,16 @@ func AICallback(db *services.DBService, log *services.LogService) gin.HandlerFun
 		// 检查是否需要暂停打印
 		settings, err := db.GetUserSettings()
 		if err != nil {
-			log.Error("获取用户设置失败", "error", err)
+			log.Error("获取用户设置失败", zap.Error(err))
 			response.ServerError(c, "获取用户设置失败")
 			return
 		}
 
 		if settings.PauseOnThreshold && result.Confidence >= float64(settings.ConfidenceThreshold) {
 			// TODO: 调用打印机暂停接口
-			log.Info("触发打印暂停", "task_id", result.TaskID, "confidence", result.Confidence)
+			log.Info("触发打印暂停", 
+				zap.String("task_id", result.TaskID), 
+				zap.Float64("confidence", result.Confidence))
 		}
 
 		response.Success(c, gin.H{"status": "ok"})
@@ -187,7 +190,7 @@ func PrinterPause(log *services.LogService) gin.HandlerFunc {
 		}
 
 		// TODO: 实现打印机暂停逻辑，需要调用Moonraker客户端
-		log.Info("请求打印机暂停", "machine_sn", req.MachineSN)
+		log.Info("请求打印机暂停", zap.String("machine_sn", req.MachineSN))
 
 		response.Success(c, gin.H{"status": "ok"})
 	}

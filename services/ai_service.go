@@ -175,6 +175,14 @@ func (s *CloudAIService) PredictWithFile(ctx context.Context, imagePath string) 
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	req.Header.Set("Authorization", "Bearer "+machineInfo.AuthToken)
 
+	// 打印请求信息
+	fmt.Printf("\n请求URL: %s\n", req.URL.String())
+	fmt.Printf("请求方法: %s\n", req.Method)
+	fmt.Printf("Content-Type: %s\n", req.Header.Get("Content-Type"))
+	fmt.Printf("Authorization: Bearer %s...\n", machineInfo.AuthToken[:30])
+	fmt.Printf("TaskID: %s\n", taskID)
+	fmt.Printf("图片文件: %s\n\n", imagePath)
+
 	// 发送请求
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
@@ -182,15 +190,30 @@ func (s *CloudAIService) PredictWithFile(ctx context.Context, imagePath string) 
 	}
 	defer resp.Body.Close()
 
+	// 读取响应内容
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %v", err)
+	}
+
+	// 打印响应信息
+	fmt.Printf("响应状态码: %d\n", resp.StatusCode)
+	fmt.Printf("响应内容: %s\n\n", string(respBody))
+
+	// 检查响应状态码
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("server returned non-200 status code: %d, body: %s", resp.StatusCode, string(respBody))
+	}
+
 	// 解析响应
 	var result struct {
-		Code int    `json:"code"`
-		Msg  string `json:"msg"`
+		Code int         `json:"code"`
+		Msg  string      `json:"msg"`
 		Data interface{} `json:"data"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %v", err)
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %v, raw response: %s", err, string(respBody))
 	}
 
 	if result.Code != 200 {

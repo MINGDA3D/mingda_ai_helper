@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -10,9 +11,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"go.uber.org/zap"
 
 	"mingda_ai_helper/models"
-	"mingda_ai_helper/services"
+	"mingda_ai_helper/pkg/response"
 )
 
 // MockDBService 模拟数据库服务
@@ -61,7 +63,7 @@ type MockAIService struct {
 	mock.Mock
 }
 
-func (m *MockAIService) Predict(ctx interface{}, imageURL string, taskID string) (*models.PredictionResult, error) {
+func (m *MockAIService) Predict(ctx context.Context, imageURL string, taskID string) (*models.PredictionResult, error) {
 	args := m.Called(ctx, imageURL, taskID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -74,12 +76,12 @@ type MockLogService struct {
 	mock.Mock
 }
 
-func (m *MockLogService) Info(msg string, args ...interface{}) {
-	m.Called(msg, args)
+func (m *MockLogService) Info(msg string, fields ...zap.Field) {
+	m.Called(msg, fields)
 }
 
-func (m *MockLogService) Error(msg string, args ...interface{}) {
-	m.Called(msg, args)
+func (m *MockLogService) Error(msg string, fields ...zap.Field) {
+	m.Called(msg, fields)
 }
 
 // 测试辅助函数
@@ -100,11 +102,11 @@ func TestHealthCheck(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	var response Response
-	err := json.Unmarshal(w.Body.Bytes(), &response)
+	var resp response.Response
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
 	assert.NoError(t, err)
-	assert.Equal(t, 0, response.Code)
-	assert.Equal(t, "success", response.Message)
+	assert.Equal(t, 0, resp.Code)
+	assert.Equal(t, "success", resp.Message)
 }
 
 // 测试设备注册接口
@@ -118,6 +120,7 @@ func TestMachineRegister(t *testing.T) {
 	reqBody := map[string]string{
 		"machine_model": "TestModel",
 		"machine_sn":    "TEST001",
+		"auth_token":    "test-token",
 	}
 	jsonBody, _ := json.Marshal(reqBody)
 
@@ -133,16 +136,11 @@ func TestMachineRegister(t *testing.T) {
 
 	// 验证结果
 	assert.Equal(t, http.StatusOK, w.Code)
-	var response Response
-	err := json.Unmarshal(w.Body.Bytes(), &response)
+	var resp response.Response
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
 	assert.NoError(t, err)
-	assert.Equal(t, 0, response.Code)
-	assert.Equal(t, "success", response.Message)
-
-	// 验证是否包含auth_token
-	data, ok := response.Data.(map[string]interface{})
-	assert.True(t, ok)
-	assert.Contains(t, data, "auth_token")
+	assert.Equal(t, 0, resp.Code)
+	assert.Equal(t, "success", resp.Message)
 }
 
 // 测试设置同步接口
@@ -173,10 +171,10 @@ func TestSettingsSync(t *testing.T) {
 
 	// 验证结果
 	assert.Equal(t, http.StatusOK, w.Code)
-	var response Response
-	err := json.Unmarshal(w.Body.Bytes(), &response)
+	var resp response.Response
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
 	assert.NoError(t, err)
-	assert.Equal(t, 0, response.Code)
+	assert.Equal(t, 0, resp.Code)
 }
 
 // 测试预测请求接口
@@ -206,13 +204,13 @@ func TestPredict(t *testing.T) {
 
 	// 验证结果
 	assert.Equal(t, http.StatusOK, w.Code)
-	var response Response
-	err := json.Unmarshal(w.Body.Bytes(), &response)
+	var resp response.Response
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
 	assert.NoError(t, err)
-	assert.Equal(t, 0, response.Code)
+	assert.Equal(t, 0, resp.Code)
 
 	// 验证返回的task_id
-	data, ok := response.Data.(map[string]interface{})
+	data, ok := resp.Data.(map[string]interface{})
 	assert.True(t, ok)
 	assert.Equal(t, "TASK001", data["task_id"])
 }
@@ -252,10 +250,10 @@ func TestAICallback(t *testing.T) {
 
 	// 验证结果
 	assert.Equal(t, http.StatusOK, w.Code)
-	var response Response
-	err := json.Unmarshal(w.Body.Bytes(), &response)
+	var resp response.Response
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
 	assert.NoError(t, err)
-	assert.Equal(t, 0, response.Code)
+	assert.Equal(t, 0, resp.Code)
 }
 
 // 测试参数验证错误

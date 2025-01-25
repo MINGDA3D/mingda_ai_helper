@@ -140,18 +140,33 @@ func Predict(ai services.AIService, db services.DBInterface, log services.LogInt
 // AICallback AI回调处理
 func AICallback(db services.DBInterface, log services.LogInterface) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var result models.PredictionResult
-		if err := c.ShouldBindJSON(&result); err != nil {
+		var req struct {
+			TaskID  string `json:"task_id" binding:"required"`
+			Status  string `json:"status" binding:"required"`
+			Result  struct {
+				PredictModel string  `json:"predict_model"`
+				HasDefect    bool    `json:"has_defect"`
+				DefectType   string  `json:"defect_type"`
+				Confidence   float64 `json:"confidence"`
+			} `json:"result"`
+		}
+
+		if err := c.ShouldBindJSON(&req); err != nil {
 			response.ValidationError(c, "无效的回调参数")
 			return
 		}
 
-		if result.TaskID == "" {
-			response.ValidationError(c, "任务ID不能为空")
-			return
+		// 更新预测结果
+		result := &models.PredictionResult{
+			TaskID:           req.TaskID,
+			PredictionStatus: models.StatusCompleted,
+			PredictionModel:  req.Result.PredictModel,
+			HasDefect:        req.Result.HasDefect,
+			DefectType:       req.Result.DefectType,
+			Confidence:       req.Result.Confidence * 100, // 转换为百分比
 		}
 
-		if err := db.SavePredictionResult(&result); err != nil {
+		if err := db.SavePredictionResult(result); err != nil {
 			log.Error("保存预测结果失败", zap.Error(err))
 			response.ServerError(c, "保存预测结果失败")
 			return
@@ -165,11 +180,12 @@ func AICallback(db services.DBInterface, log services.LogInterface) gin.HandlerF
 			return
 		}
 
-		if settings.PauseOnThreshold && result.Confidence >= float64(settings.ConfidenceThreshold) {
+		if settings.PauseOnThreshold && result.HasDefect && result.Confidence >= float64(settings.ConfidenceThreshold) {
 			// TODO: 调用打印机暂停接口
 			log.Info("触发打印暂停", 
 				zap.String("task_id", result.TaskID), 
-				zap.Float64("confidence", result.Confidence))
+				zap.Float64("confidence", result.Confidence),
+				zap.String("defect_type", result.DefectType))
 		}
 
 		response.Success(c, gin.H{"status": "ok"})

@@ -38,7 +38,7 @@ API层将预测结果发送给Klipper。
 URL：/api/v1/ai/health
 Method：GET
 Response：
-JSONCopy
+JSON
 {
   "status": "ok" // 或 "error"
 }
@@ -46,13 +46,13 @@ JSONCopy
 URL：/api/v1/machine/register
 Method：POST
 Request Body：
-JSONCopy
+JSON
 {
   "machine_model": "string",
   "machine_sn": "string"
 }
 Response：
-JSONCopy
+JSON
 {
   "auth_token": "string"
 }
@@ -60,13 +60,13 @@ JSONCopy
 URL：/api/v1/token/refresh
 Method：POST
 Request Body：
-JSONCopy
+JSON
 {
   "machine_sn": "string",
   "old_token": "string"
 }
 Response：
-JSONCopy
+JSON
 {
   "new_token": "string"
 }
@@ -74,7 +74,7 @@ JSONCopy
 URL：/api/v1/settings/sync
 Method：POST
 Request Body：
-JSONCopy
+JSON
 {
   "enable_ai": true,
   "enable_cloud_ai": true,
@@ -82,7 +82,7 @@ JSONCopy
   "pause_on_threshold": true
 }
 Response：
-JSONCopy
+JSON
 {
   "status": "ok" // 或 "error"
 }
@@ -90,14 +90,14 @@ JSONCopy
 URL：/api/v1/predict
 Method：POST
 Request Body：
-JSONCopy
+JSON
 {
   "image_url": "http://example.com/images/xxx.jpg",
   "task_id": "PT202403120001",
   "callback_url": "http://cloud-service/api/v1/ai/callback"
 }
 Response：
-JSONCopy
+JSON
 {
   "status": "ok" // 或 "error"
 }
@@ -105,17 +105,19 @@ JSONCopy
 URL：/api/v1/ai/callback
 Method：POST
 Request Body：
-JSONCopy
+JSON
 {
   "task_id": "PT202403120001",
-  "prediction_status": 2,
-  "prediction_model": "string",
-  "has_defect": true,
-  "defect_type": "string",
-  "confidence": 90.5
+  "status": "success",
+  "result": {
+    "predict_model": "spaghetti_v1.0",
+    "has_defect": true,
+    "defect_type": "stringing",
+    "confidence": 0.95
+  }
 }
 Response：
-JSONCopy
+JSON
 {
   "status": "ok" // 或 "error"
 }
@@ -123,12 +125,12 @@ JSONCopy
 URL：/api/v1/printer/pause
 Method：POST
 Request Body：
-JSONCopy
+JSON
 {
   "machine_sn": "string"
 }
 Response：
-JSONCopy
+JSON
 {
   "status": "ok" // 或 "error"
 }

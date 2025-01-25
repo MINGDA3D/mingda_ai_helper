@@ -6,10 +6,36 @@ import (
 	"log"
 	"mingda_ai_helper/config"
 	"mingda_ai_helper/services"
+	"net"
 	"time"
 )
 
+// getLocalIP 获取局域网IP地址
+func getLocalIP() (string, error) {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return "", err
+	}
+
+	for _, addr := range addrs {
+		// 检查ip地址判断是否回环地址
+		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				return ipnet.IP.String(), nil
+			}
+		}
+	}
+	return "", fmt.Errorf("无法获取局域网IP地址")
+}
+
 func main() {
+	// 获取局域网IP
+	localIP, err := getLocalIP()
+	if err != nil {
+		log.Fatalf("获取局域网IP失败: %v", err)
+	}
+	fmt.Printf("局域网IP地址: %s\n", localIP)
+
 	// 加载配置文件
 	cfg, err := config.LoadConfig("config/config.yaml")
 	if err != nil {
@@ -23,18 +49,19 @@ func main() {
 	}
 
 	// 初始化本地AI服务
-	callbackURL := "http://localhost:8080/api/v1/ai/callback"  // 回调地址
+	callbackURL := fmt.Sprintf("http://%s:8080/api/v1/ai/callback", localIP)  // 使用实际IP
 	aiService := services.NewLocalAIService(cfg.AI.LocalURL, callbackURL, dbService)
 
 	// 生成任务ID
 	taskID := fmt.Sprintf("PT%s", time.Now().Format("20060102150405"))
 
-	// 构造图片URL（这里使用测试URL）
-	imageURL := "http://localhost:8080/webcam/?action=snapshot"
+	// 构造图片URL（使用实际IP）
+	imageURL := fmt.Sprintf("http://%s/webcam/?action=snapshot", localIP)
 
-	fmt.Printf("开始发送预测请求:\n")
+	fmt.Printf("\n开始发送预测请求:\n")
 	fmt.Printf("TaskID: %s\n", taskID)
 	fmt.Printf("ImageURL: %s\n", imageURL)
+	fmt.Printf("CallbackURL: %s\n", callbackURL)
 
 	// 发送预测请求
 	result, err := aiService.Predict(context.Background(), imageURL, taskID)

@@ -49,8 +49,9 @@ func main() {
 	}
 
 	// 初始化本地AI服务
-	callbackURL := fmt.Sprintf("http://%s:8080/api/v1/ai/callback", localIP)  // 使用实际IP
-	aiService := services.NewLocalAIService(cfg.AI.LocalURL, callbackURL, dbService)
+	aiServerURL := "http://localhost:5000"  // AI服务地址
+	callbackURL := fmt.Sprintf("http://%s:8081/api/v1/ai/callback", localIP)  // 回调地址使用8081端口
+	aiService := services.NewLocalAIService(aiServerURL, callbackURL, dbService)
 
 	// 生成任务ID
 	taskID := fmt.Sprintf("PT%s", time.Now().Format("20060102150405"))
@@ -59,6 +60,7 @@ func main() {
 	imageURL := fmt.Sprintf("http://%s/webcam/?action=snapshot", localIP)
 
 	fmt.Printf("\n开始发送预测请求:\n")
+	fmt.Printf("AI服务地址: %s\n", aiServerURL)
 	fmt.Printf("TaskID: %s\n", taskID)
 	fmt.Printf("ImageURL: %s\n", imageURL)
 	fmt.Printf("CallbackURL: %s\n", callbackURL)
@@ -69,7 +71,7 @@ func main() {
 		log.Fatalf("发送预测请求失败: %v", err)
 	}
 
-	fmt.Printf("预测请求已发送，初始结果: %+v\n", result)
+	fmt.Printf("\n预测请求已发送，初始结果: %+v\n", result)
 	fmt.Println("等待AI服务回调...")
 
 	// 等待30秒，让回调有时间处理

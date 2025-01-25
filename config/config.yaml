@@ -8,11 +8,11 @@ ai:
   timeout: 30 # 请求超时时间(秒)
 
 database:
-  path: "~/printer_data/database/printer_data.db"
+  path: "/home/mingda/printer_data/database/printer_data.db"
 
 logging:
   level: "info"  # debug, info, warn, error
-  file: "~/printer_data/logs/mingda_ai_helper.log"
+  file: "/home/mingda/printer_data/logs/mingda_ai_helper.log"
   max_size: 100    # 单个日志文件最大尺寸(MB)
   max_backups: 3   # 保留的旧日志文件个数
   max_age: 28      # 日志文件保留天数 

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"errors"
 	"mingda_ai_helper/models"
 	"gorm.io/gorm"
 	"gorm.io/driver/sqlite"
@@ -93,9 +94,15 @@ func (s *DBService) SaveUserSettings(settings *models.UserSettings) error {
 // 预测结果相关操作
 func (s *DBService) GetPredictionResult(taskID string) (*models.PredictionResult, error) {
 	var result models.PredictionResult
-	if err := s.db.Where("task_id = ?", taskID).First(&result).Error; err != nil {
-		return nil, err
+	
+	err := s.db.Where("task_id = ?", taskID).First(&result).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil // 记录不存在时返回nil, nil
+		}
+		return nil, err // 其他错误正常返回
 	}
+	
 	return &result, nil
 }
 

@@ -4,8 +4,9 @@ moonraker:
   
 ai:
   local_url: "http://localhost:5000"
-  cloud_url: "http://ai.mingda3d.com"
+  cloud_url: "http://61.144.188.241:8081"
   timeout: 30 # 请求超时时间(秒)
+
 
 database:
   path: "/home/mingda/printer_data/database/printer_data.db"

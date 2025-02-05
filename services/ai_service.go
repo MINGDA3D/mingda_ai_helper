@@ -3,6 +3,8 @@ package services
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -17,6 +19,9 @@ import (
 type AIService interface {
 	Predict(ctx context.Context, imageURL string, taskID string) (*models.PredictionResult, error)
 	PredictWithFile(ctx context.Context, imagePath string) (*models.PredictionResult, error)
+	RegisterDevice(ctx context.Context, sn, model string) (string, error)
+	AuthDevice(ctx context.Context, sn, secret string) (string, error)
+	RefreshToken(ctx context.Context, oldToken string) (string, error)
 }
 
 // PredictRequest AI预测请求结构体
@@ -24,6 +29,24 @@ type PredictRequest struct {
 	ImageURL    string `json:"image_url"`
 	TaskID      string `json:"task_id"`
 	CallbackURL string `json:"callback_url"`
+}
+
+// DeviceRegisterResponse 设备注册响应
+type DeviceRegisterResponse struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+	Data    struct {
+		Secret string `json:"secret"`
+	} `json:"data"`
+}
+
+// DeviceAuthResponse 设备认证响应
+type DeviceAuthResponse struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+	Data    struct {
+		Token string `json:"token"`
+	} `json:"data"`
 }
 
 type LocalAIService struct {
@@ -336,4 +359,144 @@ func (s *CloudAIService) PredictWithFile(ctx context.Context, imagePath string) 
 	}
 
 	return predictionResult, nil
+}
+
+// RegisterDevice 注册设备
+func (s *AIService) RegisterDevice(ctx context.Context, sn, model string) (string, error) {
+	// 准备请求体
+	reqBody := map[string]string{
+		"sn":    sn,
+		"model": model,
+	}
+
+	jsonBody, err := json.Marshal(reqBody)
+	if err != nil {
+		return "", fmt.Errorf("marshal request body failed: %v", err)
+	}
+
+	// 创建请求
+	req, err := http.NewRequestWithContext(ctx, "POST", s.baseURL+"/devices/register", bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return "", fmt.Errorf("create request failed: %v", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	// 发送请求
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("send request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// 读取响应
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("read response failed: %v", err)
+	}
+
+	// 解析响应
+	var registerResp DeviceRegisterResponse
+	if err := json.Unmarshal(respBody, &registerResp); err != nil {
+		return "", fmt.Errorf("unmarshal response failed: %v", err)
+	}
+
+	if registerResp.Code != 0 {
+		return "", fmt.Errorf("register device failed: %s", registerResp.Message)
+	}
+
+	return registerResp.Data.Secret, nil
+}
+
+// AuthDevice 设备认证
+func (s *AIService) AuthDevice(ctx context.Context, sn, secret string) (string, error) {
+	// 生成时间戳
+	timestamp := time.Now().Unix()
+
+	// 生成签名: sha256(sn + secret + timestamp)
+	signStr := fmt.Sprintf("%s%s%d", sn, secret, timestamp)
+	h := sha256.New()
+	h.Write([]byte(signStr))
+	sign := hex.EncodeToString(h.Sum(nil))
+
+	// 准备请求体
+	reqBody := map[string]interface{}{
+		"sn":        sn,
+		"sign":      sign,
+		"timestamp": timestamp,
+	}
+
+	jsonBody, err := json.Marshal(reqBody)
+	if err != nil {
+		return "", fmt.Errorf("marshal request body failed: %v", err)
+	}
+
+	// 创建请求
+	req, err := http.NewRequestWithContext(ctx, "POST", s.baseURL+"/devices/auth", bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return "", fmt.Errorf("create request failed: %v", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	// 发送请求
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("send request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// 读取响应
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("read response failed: %v", err)
+	}
+
+	// 解析响应
+	var authResp DeviceAuthResponse
+	if err := json.Unmarshal(respBody, &authResp); err != nil {
+		return "", fmt.Errorf("unmarshal response failed: %v", err)
+	}
+
+	if authResp.Code != 0 {
+		return "", fmt.Errorf("auth device failed: %s", authResp.Message)
+	}
+
+	return authResp.Data.Token, nil
+}
+
+// RefreshToken 刷新token
+func (s *AIService) RefreshToken(ctx context.Context, oldToken string) (string, error) {
+	// 创建请求
+	req, err := http.NewRequestWithContext(ctx, "POST", s.baseURL+"/devices/refresh", nil)
+	if err != nil {
+		return "", fmt.Errorf("create request failed: %v", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+oldToken)
+
+	// 发送请求
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("send request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// 读取响应
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("read response failed: %v", err)
+	}
+
+	// 解析响应
+	var refreshResp DeviceAuthResponse
+	if err := json.Unmarshal(respBody, &refreshResp); err != nil {
+		return "", fmt.Errorf("unmarshal response failed: %v", err)
+	}
+
+	if refreshResp.Code != 0 {
+		return "", fmt.Errorf("refresh token failed: %s", refreshResp.Message)
+	}
+
+	return refreshResp.Data.Token, nil
 } 

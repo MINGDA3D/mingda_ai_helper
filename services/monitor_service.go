@@ -279,7 +279,7 @@ func (s *MonitorService) monitor() {
 				continue
 			}
 
-			var err error
+			// var err error
 			if useCloudAI {
 				_, err = currentAIService.PredictWithFile(s.ctx, savePath)
 			} else {

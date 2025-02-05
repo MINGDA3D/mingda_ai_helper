@@ -166,7 +166,7 @@ func main() {
 
 	// 初始化本地AI服务
 	fmt.Println("初始化本地AI服务...")
-	callbackURL := fmt.Sprintf("http://%s:%d/api/v1/ai/callback", cfg.Moonraker.Host, cfg.Moonraker.Port)
+	callbackURL := fmt.Sprintf("http://%s:%d/api/v1/ai/callback", cfg.Moonraker.Host, 8081)
 	aiService := services.NewLocalAIService(cfg.AI.LocalURL, callbackURL, dbService)
 	fmt.Println("本地AI服务初始化成功")
 

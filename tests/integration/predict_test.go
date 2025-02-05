@@ -29,7 +29,7 @@ func TestPredict() {
 	}
 
 	// 创建本地AI服务实例
-	callbackURL := fmt.Sprintf("http://%s:%d/api/v1/ai/callback", cfg.Moonraker.Host, cfg.Moonraker.Port)
+	callbackURL := fmt.Sprintf("http://%s:8081/api/v1/ai/callback", cfg.Moonraker.Host)
 	localAI := services.NewLocalAIService(cfg.AI.LocalURL, callbackURL, dbService)
 
 	// 启动回调服务器

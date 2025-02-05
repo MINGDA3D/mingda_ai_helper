@@ -19,9 +19,6 @@ import (
 type AIService interface {
 	Predict(ctx context.Context, imageURL string, taskID string) (*models.PredictionResult, error)
 	PredictWithFile(ctx context.Context, imagePath string) (*models.PredictionResult, error)
-	RegisterDevice(ctx context.Context, sn, model string) (string, error)
-	AuthDevice(ctx context.Context, sn, secret string) (string, error)
-	RefreshToken(ctx context.Context, oldToken string) (string, error)
 }
 
 // PredictRequest AI预测请求结构体
@@ -413,7 +410,7 @@ func (s *CloudAIService) PredictWithFile(ctx context.Context, imagePath string) 
 }
 
 // RegisterDevice 注册设备
-func (s *AIService) RegisterDevice(ctx context.Context, sn, model string) (string, error) {
+func (s *CloudAIService) RegisterDevice(ctx context.Context, sn, model string) (string, error) {
 	// 准备请求体
 	reqBody := map[string]string{
 		"sn":    sn,
@@ -460,7 +457,7 @@ func (s *AIService) RegisterDevice(ctx context.Context, sn, model string) (strin
 }
 
 // AuthDevice 设备认证
-func (s *AIService) AuthDevice(ctx context.Context, sn, secret string) (string, error) {
+func (s *CloudAIService) AuthDevice(ctx context.Context, sn, secret string) (string, error) {
 	// 生成时间戳
 	timestamp := time.Now().Unix()
 
@@ -517,7 +514,7 @@ func (s *AIService) AuthDevice(ctx context.Context, sn, secret string) (string, 
 }
 
 // RefreshToken 刷新token
-func (s *AIService) RefreshToken(ctx context.Context, oldToken string) (string, error) {
+func (s *CloudAIService) RefreshToken(ctx context.Context, oldToken string) (string, error) {
 	// 创建请求
 	req, err := http.NewRequestWithContext(ctx, "POST", s.baseURL+"/devices/refresh", nil)
 	if err != nil {

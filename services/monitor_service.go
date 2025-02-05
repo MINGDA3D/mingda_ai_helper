@@ -184,8 +184,8 @@ func (s *MonitorService) monitor() {
 				continue
 			}
 
-			// 如果不在打印状态，跳过后续操作
-			if !status.IsPrinting {
+			// 如果不在打印状态，跳过检查
+			if !status.IsPrinting() {
 				continue
 			}
 
@@ -217,7 +217,7 @@ func (s *MonitorService) monitor() {
 			}
 
 			// 如果不在打印状态，跳过拍照
-			if !status.IsPrinting {
+			if !status.IsPrinting() {
 				continue
 			}
 

@@ -34,6 +34,11 @@ type PrinterStatus struct {
 	} `json:"print_stats"`
 }
 
+// IsPrinting 判断打印机是否正在打印
+func (s *PrinterStatus) IsPrinting() bool {
+	return s.PrintStats.State == "printing" && s.VirtualSdcard.IsActive
+}
+
 // MoonrakerClient Moonraker客户端
 type MoonrakerClient struct {
 	config     config.MoonrakerConfig

@@ -116,45 +116,25 @@ func (s *LocalAIService) PredictWithFile(ctx context.Context, imagePath string) 
 	// 生成任务ID
 	taskID := fmt.Sprintf("PT%s", time.Now().Format("20060102150405"))
 
-	// 打开文件
-	file, err := os.Open(imagePath)
+	// 创建预测请求
+	reqBody := PredictRequest{
+		ImageURL:    fmt.Sprintf("file://%s", imagePath),
+		TaskID:      taskID,
+		CallbackURL: s.callbackURL,
+	}
+
+	// 将请求体转换为JSON
+	jsonData, err := json.Marshal(reqBody)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open image file: %v", err)
+		return nil, fmt.Errorf("marshal request failed: %v", err)
 	}
-	defer file.Close()
 
-	// 准备multipart表单
-	body := &bytes.Buffer{}
-	writer := multipart.NewWriter(body)
-
-	// 添加文件
-	part, err := writer.CreateFormFile("file", filepath.Base(imagePath))
+	// 创建HTTP请求
+	req, err := http.NewRequestWithContext(ctx, "POST", s.localURL+"/api/v1/predict", bytes.NewBuffer(jsonData))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create form file: %v", err)
+		return nil, fmt.Errorf("create request failed: %v", err)
 	}
-	if _, err = io.Copy(part, file); err != nil {
-		return nil, fmt.Errorf("failed to copy file content: %v", err)
-	}
-
-	// 添加task_id和callback_url
-	if err = writer.WriteField("task_id", taskID); err != nil {
-		return nil, fmt.Errorf("failed to add task_id field: %v", err)
-	}
-	if err = writer.WriteField("callback_url", s.callbackURL); err != nil {
-		return nil, fmt.Errorf("failed to add callback_url field: %v", err)
-	}
-
-	if err = writer.Close(); err != nil {
-		return nil, fmt.Errorf("failed to close writer: %v", err)
-	}
-
-	// 创建上传请求
-	req, err := http.NewRequestWithContext(ctx, "POST", s.localURL+"/api/v1/predict", body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %v", err)
-	}
-
-	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Content-Type", "application/json")
 
 	// 发送请求
 	resp, err := s.httpClient.Do(req)

@@ -10,8 +10,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/sirupsen/logrus"
-	"github.com/spf13/viper"
 	"go.uber.org/zap"
 )
 

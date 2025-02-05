@@ -248,54 +248,59 @@ func (s *CloudAIService) PredictWithFile(ctx context.Context, imagePath string) 
 		return nil, fmt.Errorf("image file not found: %s", imagePath)
 	}
 
-	// 打开文件
-	file, err := os.Open(imagePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open image file: %v", err)
+	// 定义发送请求的函数
+	sendRequest := func(token string) (*http.Response, error) {
+		// 打开文件
+		file, err := os.Open(imagePath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open image file: %v", err)
+		}
+		defer file.Close()
+
+		// 准备multipart表单
+		body := &bytes.Buffer{}
+		writer := multipart.NewWriter(body)
+
+		// 添加文件
+		part, err := writer.CreateFormFile("file", filepath.Base(imagePath))
+		if err != nil {
+			return nil, fmt.Errorf("failed to create form file: %v", err)
+		}
+		if _, err = io.Copy(part, file); err != nil {
+			return nil, fmt.Errorf("failed to copy file content: %v", err)
+		}
+
+		// 添加task_id
+		if err = writer.WriteField("task_id", taskID); err != nil {
+			return nil, fmt.Errorf("failed to add task_id field: %v", err)
+		}
+
+		if err = writer.Close(); err != nil {
+			return nil, fmt.Errorf("failed to close writer: %v", err)
+		}
+
+		// 创建上传请求
+		req, err := http.NewRequestWithContext(ctx, "POST", s.baseURL+"/device/print/image", body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create request: %v", err)
+		}
+
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		req.Header.Set("Authorization", "Bearer "+token)
+
+		// 打印请求信息
+		fmt.Printf("\n请求URL: %s\n", req.URL.String())
+		fmt.Printf("请求方法: %s\n", req.Method)
+		fmt.Printf("Content-Type: %s\n", req.Header.Get("Content-Type"))
+		fmt.Printf("Authorization: Bearer %s...\n", token[:30])
+		fmt.Printf("TaskID: %s\n", taskID)
+		fmt.Printf("图片文件: %s\n\n", imagePath)
+
+		return s.httpClient.Do(req)
 	}
-	defer file.Close()
 
-	// 准备multipart表单
-	body := &bytes.Buffer{}
-	writer := multipart.NewWriter(body)
-
-	// 添加文件
-	part, err := writer.CreateFormFile("file", filepath.Base(imagePath))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create form file: %v", err)
-	}
-	if _, err = io.Copy(part, file); err != nil {
-		return nil, fmt.Errorf("failed to copy file content: %v", err)
-	}
-
-	// 添加task_id
-	if err = writer.WriteField("task_id", taskID); err != nil {
-		return nil, fmt.Errorf("failed to add task_id field: %v", err)
-	}
-
-	if err = writer.Close(); err != nil {
-		return nil, fmt.Errorf("failed to close writer: %v", err)
-	}
-
-	// 创建上传请求
-	req, err := http.NewRequestWithContext(ctx, "POST", s.baseURL+"/device/print/image", body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %v", err)
-	}
-
-	req.Header.Set("Content-Type", writer.FormDataContentType())
-	req.Header.Set("Authorization", "Bearer "+machineInfo.AuthToken)
-
-	// 打印请求信息
-	fmt.Printf("\n请求URL: %s\n", req.URL.String())
-	fmt.Printf("请求方法: %s\n", req.Method)
-	fmt.Printf("Content-Type: %s\n", req.Header.Get("Content-Type"))
-	fmt.Printf("Authorization: Bearer %s...\n", machineInfo.AuthToken[:30])
-	fmt.Printf("TaskID: %s\n", taskID)
-	fmt.Printf("图片文件: %s\n\n", imagePath)
-
-	// 发送请求
-	resp, err := s.httpClient.Do(req)
+	// 首次尝试发送请求
+	resp, err := sendRequest(machineInfo.AuthToken)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %v", err)
 	}
@@ -311,7 +316,53 @@ func (s *CloudAIService) PredictWithFile(ctx context.Context, imagePath string) 
 	fmt.Printf("响应状态码: %d\n", resp.StatusCode)
 	fmt.Printf("响应内容: %s\n\n", string(respBody))
 
-	// 检查响应状态码
+	// 如果是401错误，尝试刷新token并重试
+	if resp.StatusCode == http.StatusUnauthorized {
+		var errorResp struct {
+			Code    int    `json:"code"`
+			Message string `json:"message"`
+		}
+		if err := json.Unmarshal(respBody, &errorResp); err != nil {
+			return nil, fmt.Errorf("failed to parse error response: %v", err)
+		}
+
+		// 如果是token过期错误
+		if errorResp.Code == 1003 {
+			fmt.Println("Token已过期，正在刷新...")
+			
+			// 刷新token
+			newToken, err := s.RefreshToken(ctx, machineInfo.AuthToken)
+			if err != nil {
+				return nil, fmt.Errorf("failed to refresh token: %v", err)
+			}
+
+			// 更新数据库中的token
+			if err := s.dbService.UpdateMachineToken(machineInfo.MachineSN, newToken); err != nil {
+				return nil, fmt.Errorf("failed to update token in database: %v", err)
+			}
+
+			fmt.Println("Token刷新成功，重试请求...")
+
+			// 使用新token重试请求
+			resp, err = sendRequest(newToken)
+			if err != nil {
+				return nil, fmt.Errorf("failed to retry request: %v", err)
+			}
+			defer resp.Body.Close()
+
+			// 读取重试响应
+			respBody, err = io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, fmt.Errorf("failed to read retry response body: %v", err)
+			}
+
+			// 打印重试响应信息
+			fmt.Printf("重试响应状态码: %d\n", resp.StatusCode)
+			fmt.Printf("重试响应内容: %s\n\n", string(respBody))
+		}
+	}
+
+	// 检查最终响应状态码
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("server returned non-200 status code: %d, body: %s", resp.StatusCode, string(respBody))
 	}

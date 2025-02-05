@@ -170,9 +170,14 @@ func main() {
 	aiService := services.NewLocalAIService(cfg.AI.LocalURL, callbackURL, dbService)
 	fmt.Println("本地AI服务初始化成功")
 
+	// 初始化云端AI服务
+	fmt.Println("初始化云端AI服务...")
+	cloudAIService := services.NewCloudAIService(cfg.AI.CloudURL, dbService)
+	fmt.Println("云端AI服务初始化成功")
+
 	// 初始化监控服务
 	fmt.Println("初始化监控服务...")
-	monitorService := services.NewMonitorService(moonrakerClient, aiService, dbService, logService)
+	monitorService := services.NewMonitorService(moonrakerClient, aiService, cloudAIService, dbService, logService)
 	if err := monitorService.Start(); err != nil {
 		log.Fatalf("启动监控服务失败: %v", err)
 	}

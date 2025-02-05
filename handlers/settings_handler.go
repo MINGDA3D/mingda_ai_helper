@@ -1,17 +1,17 @@
 package handlers
 
 import (
-	"encoding/json"
 	"fmt"
-	"log"
-	"net/http"
 	"mingda_ai_helper/models"
+	"mingda_ai_helper/pkg/response"
 	"mingda_ai_helper/services"
+
+	"github.com/gin-gonic/gin"
 )
 
 // AICallbackRequest AI回调请求结构
 type AICallbackRequest struct {
-	TaskID      string  `json:"task_id"`
+	TaskID      string  `json:"task_id" binding:"required"`
 	HasDefect   bool    `json:"has_defect"`
 	DefectType  string  `json:"defect_type"`
 	Confidence  float64 `json:"confidence"`
@@ -32,16 +32,10 @@ func NewSettingsHandler(dbService *services.DBService, moonrakerClient *services
 }
 
 // HandleSettingsSync 处理设置同步
-func (h *SettingsHandler) HandleSettingsSync(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "只支持POST方法", http.StatusMethodNotAllowed)
-		return
-	}
-
+func (h *SettingsHandler) HandleSettingsSync(c *gin.Context) {
 	var settings models.UserSettings
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&settings); err != nil {
-		http.Error(w, "无效的JSON格式", http.StatusBadRequest)
+	if err := c.ShouldBindJSON(&settings); err != nil {
+		response.ValidationError(c, "无效的请求参数")
 		return
 	}
 
@@ -52,39 +46,25 @@ func (h *SettingsHandler) HandleSettingsSync(w http.ResponseWriter, r *http.Requ
 	fmt.Printf("超过阈值暂停: %v\n", settings.PauseOnThreshold)
 
 	if settings.ConfidenceThreshold < 0 || settings.ConfidenceThreshold > 100 {
-		http.Error(w, "置信度阈值必须在0-100之间", http.StatusBadRequest)
+		response.ValidationError(c, "置信度阈值必须在0-100之间")
 		return
 	}
 
 	if err := h.dbService.SaveUserSettings(&settings); err != nil {
-		log.Printf("保存设置失败: %v", err)
-		http.Error(w, "保存设置失败", http.StatusInternalServerError)
+		response.ServerError(c, "保存设置失败")
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"code":    0,
-		"message": "success",
-		"data": map[string]interface{}{
-			"status": "ok",
-		},
+	response.Success(c, gin.H{
+		"status": "ok",
 	})
 }
 
 // HandleAICallback 处理AI回调
-func (h *SettingsHandler) HandleAICallback(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "只支持POST方法", http.StatusMethodNotAllowed)
-		return
-	}
-
+func (h *SettingsHandler) HandleAICallback(c *gin.Context) {
 	var callback AICallbackRequest
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&callback); err != nil {
-		log.Printf("解析回调请求失败: %v", err)
-		http.Error(w, "无效的JSON格式", http.StatusBadRequest)
+	if err := c.ShouldBindJSON(&callback); err != nil {
+		response.ValidationError(c, "无效的请求参数")
 		return
 	}
 
@@ -96,8 +76,7 @@ func (h *SettingsHandler) HandleAICallback(w http.ResponseWriter, r *http.Reques
 
 	settings, err := h.dbService.GetUserSettings()
 	if err != nil {
-		log.Printf("获取用户设置失败: %v", err)
-		http.Error(w, "获取用户设置失败", http.StatusInternalServerError)
+		response.ServerError(c, "获取用户设置失败")
 		return
 	}
 
@@ -108,10 +87,10 @@ func (h *SettingsHandler) HandleAICallback(w http.ResponseWriter, r *http.Reques
 		if settings.PauseOnThreshold {
 			status, err := h.moonrakerClient.GetPrinterStatus()
 			if err != nil {
-				log.Printf("获取打印机状态失败: %v", err)
+				fmt.Printf("获取打印机状态失败: %v\n", err)
 			} else if status.IsPrinting {
 				if err := h.moonrakerClient.PausePrint(); err != nil {
-					log.Printf("暂停打印失败: %v", err)
+					fmt.Printf("暂停打印失败: %v\n", err)
 				} else {
 					fmt.Printf("已暂停打印，任务ID: %s\n", callback.TaskID)
 				}
@@ -128,18 +107,11 @@ func (h *SettingsHandler) HandleAICallback(w http.ResponseWriter, r *http.Reques
 	}
 
 	if err := h.dbService.SavePredictionResult(result); err != nil {
-		log.Printf("保存预测结果失败: %v", err)
-		http.Error(w, "保存预测结果失败", http.StatusInternalServerError)
+		response.ServerError(c, "保存预测结果失败")
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"code":    0,
-		"message": "success",
-		"data": map[string]interface{}{
-			"status": "ok",
-		},
+	response.Success(c, gin.H{
+		"status": "ok",
 	})
 } 

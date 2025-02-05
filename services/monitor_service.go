@@ -279,8 +279,14 @@ func (s *MonitorService) monitor() {
 				continue
 			}
 
-			// 发送预测请求（结果会通过回调处理）
-			if _, err := currentAIService.Predict(s.ctx, cameraURL, taskID); err != nil {
+			var err error
+			if useCloudAI {
+				_, err = currentAIService.PredictWithFile(s.ctx, savePath)
+			} else {
+				_, err = currentAIService.Predict(s.ctx, cameraURL, taskID)
+			}
+
+			if err != nil {
 				s.logService.Error("AI预测失败", zap.Error(err))
 				continue
 			}

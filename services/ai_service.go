@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+	"encoding/base64"
 )
 
 type AIService interface {
@@ -207,51 +208,34 @@ func (s *CloudAIService) PredictWithFile(ctx context.Context, imagePath string) 
 	// 获取机器信息和认证令牌
 	machineInfo, err := s.dbService.GetMachineInfo()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get machine info: %v", err)
+		return nil, fmt.Errorf("获取机器信息失败: %v", err)
 	}
-	if machineInfo == nil {
-		return nil, fmt.Errorf("machine info not found")
+
+	// 读取图片文件并转换为base64
+	imageData, err := os.ReadFile(imagePath)
+	if err != nil {
+		return nil, fmt.Errorf("读取图片文件失败: %v", err)
 	}
+	base64Image := base64.StdEncoding.EncodeToString(imageData)
 
 	// 生成任务ID
-	if imagePath == "" {
-		return nil, fmt.Errorf("image path is required")
-	}
-
 	taskID := fmt.Sprintf("PT%s", time.Now().Format("20060102150405"))
 
-	// 检查文件是否存在
-	if _, err := os.Stat(imagePath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("image file not found: %s", imagePath)
+	// 构造请求体
+	reqBody := struct {
+		TaskID    string `json:"task_id"`
+		ImageData string `json:"image_data"`
+		MachineSN string `json:"machine_sn"`
+	}{
+		TaskID:    taskID,
+		ImageData: base64Image,
+		MachineSN: machineInfo.MachineSN,
 	}
 
-	// 打开文件
-	file, err := os.Open(imagePath)
+	// 将请求体转换为JSON
+	jsonData, err := json.Marshal(reqBody)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open image file: %v", err)
-	}
-	defer file.Close()
-
-	// 准备multipart表单
-	body := &bytes.Buffer{}
-	writer := multipart.NewWriter(body)
-
-	// 添加文件
-	part, err := writer.CreateFormFile("file", filepath.Base(imagePath))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create form file: %v", err)
-	}
-	if _, err = io.Copy(part, file); err != nil {
-		return nil, fmt.Errorf("failed to copy file content: %v", err)
-	}
-
-	// 添加task_id
-	if err = writer.WriteField("task_id", taskID); err != nil {
-		return nil, fmt.Errorf("failed to add task_id field: %v", err)
-	}
-
-	if err = writer.Close(); err != nil {
-		return nil, fmt.Errorf("failed to close writer: %v", err)
+		return nil, fmt.Errorf("序列化请求体失败: %v", err)
 	}
 
 	// 创建上传请求
@@ -260,7 +244,8 @@ func (s *CloudAIService) PredictWithFile(ctx context.Context, imagePath string) 
 		return nil, fmt.Errorf("failed to create request: %v", err)
 	}
 
-	req.Header.Set("Content-Type", writer.FormDataContentType())
+	// 设置请求头
+	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+machineInfo.AuthToken)
 
 	// 打印请求信息
@@ -274,38 +259,36 @@ func (s *CloudAIService) PredictWithFile(ctx context.Context, imagePath string) 
 	// 发送请求
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %v", err)
+		return nil, fmt.Errorf("发送请求失败: %v", err)
 	}
 	defer resp.Body.Close()
 
 	// 读取响应内容
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %v", err)
+		return nil, fmt.Errorf("读取响应失败: %v", err)
 	}
-
-	// 打印响应信息
-	fmt.Printf("响应状态码: %d\n", resp.StatusCode)
-	fmt.Printf("响应内容: %s\n\n", string(respBody))
 
 	// 检查响应状态码
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("server returned non-200 status code: %d, body: %s", resp.StatusCode, string(respBody))
+		return nil, fmt.Errorf("服务器返回错误状态码: %d, 响应内容: %s", resp.StatusCode, string(respBody))
 	}
 
 	// 解析响应
 	var result struct {
-		Code int         `json:"code"`
-		Msg  string      `json:"msg"`
-		Data interface{} `json:"data"`
+		Code int    `json:"code"`
+		Msg  string `json:"msg"`
+		Data struct {
+			TaskID string `json:"task_id"`
+		} `json:"data"`
 	}
 
 	if err := json.Unmarshal(respBody, &result); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %v, raw response: %s", err, string(respBody))
+		return nil, fmt.Errorf("解析响应失败: %v, 原始响应: %s", err, string(respBody))
 	}
 
 	if result.Code != 200 {
-		return nil, fmt.Errorf("upload failed: %s", result.Msg)
+		return nil, fmt.Errorf("上传失败: %s", result.Msg)
 	}
 
 	// 查询预测状态
@@ -332,7 +315,7 @@ func (s *CloudAIService) PredictWithFile(ctx context.Context, imagePath string) 
 
 	// 保存预测结果到数据库
 	if err := s.dbService.SavePredictionResult(predictionResult); err != nil {
-		return nil, fmt.Errorf("failed to save prediction result: %v", err)
+		return nil, fmt.Errorf("保存预测结果失败: %v", err)
 	}
 
 	return predictionResult, nil

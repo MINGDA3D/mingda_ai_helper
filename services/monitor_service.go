@@ -174,8 +174,10 @@ func (s *MonitorService) monitor() {
 
 			// 如果AI功能未启用，跳过检查
 			if !settings.EnableAI {
+				s.logService.Info("AI监控已关闭")
 				continue
 			}
+
 
 			// 获取打印状态
 			status, err := s.moonrakerClient.GetPrinterStatus()
@@ -186,8 +188,10 @@ func (s *MonitorService) monitor() {
 
 			// 如果不在打印状态，跳过检查
 			if !status.IsPrinting() {
+				s.logService.Info("不在打印状态，跳过检查")
 				continue
 			}
+
 
 			s.logService.Info("打印机正在打印中，AI监控已启用")
 

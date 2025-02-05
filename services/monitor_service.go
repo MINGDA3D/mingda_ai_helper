@@ -2,6 +2,13 @@ package services
 
 import (
 	"context"
+	"fmt"
+	"io"
+	"mingda_ai_helper/models"
+	"net"
+	"net/http"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -18,6 +25,10 @@ type MonitorService struct {
 	ctx            context.Context
 	cancel         context.CancelFunc
 	wg             sync.WaitGroup
+
+	// 监控间隔
+	statusCheckInterval time.Duration
+	snapshotInterval   time.Duration
 }
 
 // NewMonitorService 创建新的监控服务
@@ -29,12 +40,14 @@ func NewMonitorService(
 ) *MonitorService {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &MonitorService{
-		moonrakerClient: moonrakerClient,
-		aiService:       aiService,
-		dbService:       dbService,
-		logService:      logService,
-		ctx:            ctx,
-		cancel:         cancel,
+		moonrakerClient:     moonrakerClient,
+		aiService:           aiService,
+		dbService:           dbService,
+		logService:          logService,
+		ctx:                 ctx,
+		cancel:             cancel,
+		statusCheckInterval: time.Minute,      // 1分钟检查一次状态
+		snapshotInterval:   time.Minute * 3,   // 3分钟拍照一次
 	}
 }
 
@@ -66,21 +79,174 @@ func (s *MonitorService) Stop() {
 	s.wg.Wait()
 }
 
+// getLocalIP 获取本地IP地址
+func (s *MonitorService) getLocalIP() (string, error) {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return "", err
+	}
+
+	for _, addr := range addrs {
+		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				return ipnet.IP.String(), nil
+			}
+		}
+	}
+	return "", fmt.Errorf("无法获取局域网IP地址")
+}
+
+// getSnapshot 获取摄像头快照
+func (s *MonitorService) getSnapshot(url string) (string, error) {
+	// 创建HTTP客户端
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+
+	// 发送GET请求
+	resp, err := client.Get(url)
+	if err != nil {
+		return "", fmt.Errorf("获取快照失败: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// 检查响应状态码
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("获取快照失败，状态码: %d", resp.StatusCode)
+	}
+
+	// 生成保存路径
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("获取用户主目录失败: %v", err)
+	}
+	
+	timestamp := time.Now().Format("20060102_150405")
+	savePath := filepath.Join(homeDir, "printer_data", "ai_snapshots", fmt.Sprintf("snapshot_%s.jpg", timestamp))
+
+	// 创建保存目录
+	if err := os.MkdirAll(filepath.Dir(savePath), 0755); err != nil {
+		return "", fmt.Errorf("创建目录失败: %v", err)
+	}
+
+	// 创建文件
+	file, err := os.Create(savePath)
+	if err != nil {
+		return "", fmt.Errorf("创建文件失败: %v", err)
+	}
+	defer file.Close()
+
+	// 将响应内容写入文件
+	if _, err := io.Copy(file, resp.Body); err != nil {
+		return "", fmt.Errorf("保存图片失败: %v", err)
+	}
+
+	return savePath, nil
+}
+
 // monitor 监控打印状态
 func (s *MonitorService) monitor() {
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
+	statusTicker := time.NewTicker(s.statusCheckInterval)
+	snapshotTicker := time.NewTicker(s.snapshotInterval)
+	defer statusTicker.Stop()
+	defer snapshotTicker.Stop()
+
+	var lastSnapshotTime time.Time
 
 	for {
 		select {
 		case <-s.ctx.Done():
 			return
-		case <-ticker.C:
-			// TODO: 实现具体的监控逻辑
-			// 1. 获取打印状态
-			// 2. 如果正在打印，获取摄像头图像
-			// 3. 调用 AI 服务进行预测
-			// 4. 根据预测结果决定是否暂停打印
+		case <-statusTicker.C:
+			// 获取用户设置
+			settings, err := s.dbService.GetUserSettings()
+			if err != nil {
+				s.logService.Error("获取用户设置失败", zap.Error(err))
+				continue
+			}
+
+			// 如果AI功能未启用，跳过检查
+			if !settings.EnableAI {
+				continue
+			}
+
+			// 获取打印状态
+			status, err := s.moonrakerClient.GetPrinterStatus()
+			if err != nil {
+				s.logService.Error("获取打印机状态失败", zap.Error(err))
+				continue
+			}
+
+			// 如果不在打印状态，跳过后续操作
+			if !status.IsPrinting {
+				continue
+			}
+
+			s.logService.Info("打印机正在打印中，AI监控已启用")
+
+		case <-snapshotTicker.C:
+			// 检查是否需要拍照
+			if time.Since(lastSnapshotTime) < s.snapshotInterval {
+				continue
+			}
+
+			// 获取用户设置
+			settings, err := s.dbService.GetUserSettings()
+			if err != nil {
+				s.logService.Error("获取用户设置失败", zap.Error(err))
+				continue
+			}
+
+			// 如果AI功能未启用，跳过拍照
+			if !settings.EnableAI {
+				continue
+			}
+
+			// 获取打印状态
+			status, err := s.moonrakerClient.GetPrinterStatus()
+			if err != nil {
+				s.logService.Error("获取打印机状态失败", zap.Error(err))
+				continue
+			}
+
+			// 如果不在打印状态，跳过拍照
+			if !status.IsPrinting {
+				continue
+			}
+
+			// 获取本地IP
+			localIP, err := s.getLocalIP()
+			if err != nil {
+				s.logService.Error("获取本地IP失败", zap.Error(err))
+				continue
+			}
+
+			// 构造摄像头URL
+			cameraURL := fmt.Sprintf("http://%s/webcam/?action=snapshot", localIP)
+			
+			// 获取快照
+			s.logService.Info("开始获取摄像头快照", zap.String("url", cameraURL))
+			savePath, err := s.getSnapshot(cameraURL)
+			if err != nil {
+				s.logService.Error("获取快照失败", zap.Error(err))
+				continue
+			}
+
+			// 更新最后拍照时间
+			lastSnapshotTime = time.Now()
+
+			// 调用AI服务进行预测
+			s.logService.Info("开始AI预测", zap.String("image_path", savePath))
+			result, err := s.aiService.PredictWithFile(s.ctx, savePath)
+			if err != nil {
+				s.logService.Error("AI预测失败", zap.Error(err))
+				continue
+			}
+
+			s.logService.Info("AI预测完成",
+				zap.String("task_id", result.TaskID),
+				zap.Int("status", int(result.PredictionStatus)),
+				zap.String("model", result.PredictionModel))
 		}
 	}
 } 

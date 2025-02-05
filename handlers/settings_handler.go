@@ -80,7 +80,7 @@ func (h *SettingsHandler) HandleAICallback(c *gin.Context) {
 		return
 	}
 
-	if callback.HasDefect && callback.Confidence >= float64(settings.ConfidenceThreshold) {
+	if callback.HasDefect && callback.Confidence >= float64(settings.ConfidenceThreshold)/100.0 {
 		fmt.Printf("检测到打印缺陷，置信度: %.2f，阈值: %d\n", 
 			callback.Confidence, settings.ConfidenceThreshold)
 

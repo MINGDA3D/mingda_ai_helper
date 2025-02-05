@@ -1,4 +1,4 @@
-package main
+package integration
 
 import (
 	"context"
@@ -84,9 +84,10 @@ func startCallbackServer(dbService *services.DBService, logService *services.Log
 	// 等待服务器启动
 	time.Sleep(1 * time.Second)
 }
-func main() {
+
+func TestAIService() {
 	// 加载配置
-	cfg, err := config.LoadConfig("../config/config.yaml")
+	cfg, err := config.LoadConfig("../../config/config.yaml")
 	if err != nil {
 		log.Fatalf("加载配置失败: %v", err)
 	}
@@ -111,51 +112,27 @@ func main() {
 
 	// 构造摄像头URL和保存路径
 	cameraURL := fmt.Sprintf("http://%s/webcam/?action=snapshot", localIP)
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		log.Fatalf("\033[31m获取用户主目录失败: %v\033[0m\n", err)
-	}
-	
-	// 生成保存路径
-	timestamp := time.Now().Format("20060102_150405")
-	savePath := filepath.Join(homeDir, "printer_data", "ai_snapshots", fmt.Sprintf("snapshot_%s.jpg", timestamp))
+	savePath := "test_snapshot.jpg"
 
-	fmt.Printf("\033[33m正在从摄像头获取图片: %s\033[0m\n", cameraURL)
-	
-	// 获取并保存快照
+	// 获取快照
+	fmt.Printf("\n开始获取摄像头快照...\n")
+	fmt.Printf("摄像头URL: %s\n", cameraURL)
+	fmt.Printf("保存路径: %s\n", savePath)
+
 	if err := getSnapshot(cameraURL, savePath); err != nil {
 		log.Fatalf("\033[31m获取快照失败: %v\033[0m\n", err)
 	}
+	fmt.Printf("\033[32m获取快照成功\033[0m\n")
 
-	fmt.Printf("\033[32m快照已保存到: %s\033[0m\n", savePath)
-
-	// 调用预测接口
-	fmt.Printf("\033[33m开始处理图片...\033[0m\n")
+	// 发送预测请求
+	fmt.Printf("\n开始发送预测请求...\n")
 	result, err := cloudAI.PredictWithFile(context.Background(), savePath)
 	if err != nil {
-		log.Fatalf("\033[31m预测失败: %v\033[0m\n", err)
+		log.Fatalf("\033[31m发送预测请求失败: %v\033[0m\n", err)
 	}
+	fmt.Printf("\033[32m发送预测请求成功，任务ID: %s\033[0m\n", result.TaskID)
 
-	fmt.Printf("\033[32m预测成功!\033[0m\n")
-	fmt.Printf("任务ID: %s\n", result.TaskID)
-	fmt.Printf("预测状态: %d\n", result.PredictionStatus)
-	fmt.Printf("预测模型: %s\n", result.PredictionModel)
-
-		// 等待30秒，让回调有时间处理
-		time.Sleep(30 * time.Second)
-
-		// 查询最终结果
-		finalResult, err := dbService.GetPredictionResult(taskID)
-		if err != nil {
-			log.Fatalf("获取预测结果失败: %v", err)
-		}
-	
-		fmt.Printf("\n=== 最终预测结果 ===\n")
-		printJSON("结果", finalResult)
-	
-		// 打印状态说明
-		fmt.Printf("\n状态说明：\n")
-		fmt.Printf("0: 等待处理\n")
-		fmt.Printf("1: 处理中\n")
-		fmt.Printf("2: 处理完成\n")
+	// 等待回调处理
+	fmt.Println("\n等待回调处理...")
+	time.Sleep(10 * time.Second)
 } 

@@ -138,7 +138,7 @@ func Predict(ai services.AIService, db services.DBInterface, log services.LogInt
 }
 
 // AICallback AI回调处理
-func AICallback(db services.DBInterface, log services.LogInterface) gin.HandlerFunc {
+func AICallback(db services.DBInterface, log services.LogInterface, moonraker *services.MoonrakerClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req struct {
 			TaskID  string `json:"task_id" binding:"required"`
@@ -181,11 +181,21 @@ func AICallback(db services.DBInterface, log services.LogInterface) gin.HandlerF
 		}
 
 		if settings.PauseOnThreshold && result.HasDefect && result.Confidence >= float64(settings.ConfidenceThreshold) {
-			// TODO: 调用打印机暂停接口
-			log.Info("触发打印暂停", 
-				zap.String("task_id", result.TaskID), 
-				zap.Float64("confidence", result.Confidence),
-				zap.String("defect_type", result.DefectType))
+			// 获取打印机状态
+			status, err := moonraker.GetPrinterStatus()
+			if err != nil {
+				log.Error("获取打印机状态失败", zap.Error(err))
+			} else if status != nil && status.IsPrinting() {
+				// 调用打印机暂停接口
+				if err := moonraker.PausePrint(); err != nil {
+					log.Error("暂停打印失败", zap.Error(err))
+				} else {
+					log.Info("已暂停打印", 
+						zap.String("task_id", result.TaskID), 
+						zap.Float64("confidence", result.Confidence),
+						zap.String("defect_type", result.DefectType))
+				}
+			}
 		}
 
 		response.Success(c, gin.H{"status": "ok"})

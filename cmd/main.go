@@ -9,6 +9,10 @@ import (
 	"mingda_ai_helper/services"
 	"os"
 	"path/filepath"
+
+	"github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
+	"go.uber.org/zap"
 )
 
 // 确保数据库目录存在
@@ -27,7 +31,6 @@ func testMachineInfo(dbService *services.DBService) error {
 		MachineSN:    "M1P2004A1154004",
 		MachineModel: "MD-400D",
 		AuthToken:    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkZXZpY2VfaWQiOjExNDcsImRldmljZV9zbiI6Ik0xUDIwMDRBMTE1NDAwNCIsImV4cCI6MTczNzg3NzIwNSwiaWF0IjoxNzM3NzkwODA1LCJpc3MiOiJtaW5nZGEtY2xvdWQifQ.Gf6DjPR0w1boT0TtWEyMuUTXCoJOpMyUDj0-nWw3mDM",
-
 	}
 	
 	if err := dbService.SaveMachineInfo(machineInfo); err != nil {
@@ -162,6 +165,11 @@ func main() {
 	// 初始化Moonraker客户端
 	fmt.Println("初始化Moonraker客户端...")
 	moonrakerClient := services.NewMoonrakerClient(cfg.Moonraker, logService)
+	if err := moonrakerClient.Connect(); err != nil {
+		logService.Error("连接Moonraker失败", zap.Error(err))
+		os.Exit(1)
+	}
+	defer moonrakerClient.Close()
 	fmt.Println("Moonraker客户端初始化成功")
 
 	// 初始化本地AI服务
@@ -183,10 +191,14 @@ func main() {
 	}
 	fmt.Println("监控服务启动成功")
 
-	// 设置HTTP路由
-	fmt.Println("设置HTTP路由...")
-	router := handlers.SetupRouter(aiService, dbService, logService)
-	
+	// 初始化路由
+	router := handlers.SetupRouter(
+		aiService,
+		dbService,
+		logService,
+		moonrakerClient,
+	)
+
 	fmt.Println("HTTP路由设置完成")
 
 	// 启动HTTP服务器

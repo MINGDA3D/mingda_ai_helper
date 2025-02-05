@@ -10,6 +10,7 @@ func SetupRouter(
 	aiService services.AIService,
 	dbService services.DBInterface,
 	logService services.LogInterface,
+	moonraker *services.MoonrakerClient,
 ) *gin.Engine {
 	router := gin.New() // 使用gin.New()而不是Default()以自定义中间件
 
@@ -33,7 +34,7 @@ func SetupRouter(
 
 		// AI预测
 		v1.POST("/predict", Predict(aiService, dbService, logService))
-		v1.POST("/ai/callback", AICallback(dbService, logService))
+		v1.POST("/ai/callback", AICallback(dbService, logService, moonraker))
 
 		// 打印机控制
 		v1.POST("/printer/pause", PrinterPause(logService))

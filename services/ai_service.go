@@ -90,18 +90,20 @@ func (s *LocalAIService) Predict(ctx context.Context, imageURL string, taskID st
 
 	// 检查响应状态码
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("predict request failed with status: %d", resp.StatusCode)
+		respBody, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("server returned non-200 status code: %d, body: %s", resp.StatusCode, string(respBody))
 	}
 
 	// 创建初始预测结果
 	result := &models.PredictionResult{
 		TaskID:           taskID,
 		PredictionStatus: models.StatusProcessing,
+		PredictionModel:  "local_ai",
 	}
 
 	// 保存初始预测结果到数据库
 	if err := s.dbService.SavePredictionResult(result); err != nil {
-		return nil, fmt.Errorf("save initial prediction result failed: %v", err)
+		return nil, fmt.Errorf("failed to save prediction result: %v", err)
 	}
 
 	return result, nil

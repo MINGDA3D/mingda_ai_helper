@@ -259,9 +259,12 @@ func (s *MonitorService) monitor() {
 				zap.String("image_path", savePath),
 				zap.Bool("use_cloud", useCloudAI))
 
+			// 生成任务ID
+			taskID := fmt.Sprintf("PT%s", time.Now().Format("20060102150405"))
+
 			// 创建初始预测结果
 			result := &models.PredictionResult{
-				TaskID:           fmt.Sprintf("PT%s", time.Now().Format("20060102150405")),
+				TaskID:           taskID,
 				PredictionStatus: models.StatusProcessing,
 				PredictionModel:  "local_ai",
 			}
@@ -273,13 +276,13 @@ func (s *MonitorService) monitor() {
 			}
 
 			// 发送预测请求（结果会通过回调处理）
-			if _, err := currentAIService.PredictWithFile(s.ctx, savePath); err != nil {
+			if _, err := currentAIService.Predict(s.ctx, cameraURL, taskID); err != nil {
 				s.logService.Error("AI预测失败", zap.Error(err))
 				continue
 			}
 
 			s.logService.Info("预测请求已发送，等待回调处理",
-				zap.String("task_id", result.TaskID))
+				zap.String("task_id", taskID))
 		}
 	}
 } 

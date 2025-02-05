@@ -233,6 +233,8 @@ func (s *CloudAIService) PredictWithFile(ctx context.Context, imagePath string) 
 		return nil, fmt.Errorf("machine info not found")
 	}
 
+	fmt.Printf("当前使用的Token: %s\n", machineInfo.AuthToken)
+
 	// 生成任务ID
 	if imagePath == "" {
 		return nil, fmt.Errorf("image path is required")
@@ -326,12 +328,14 @@ func (s *CloudAIService) PredictWithFile(ctx context.Context, imagePath string) 
 		// 如果是token过期错误
 		if errorResp.Code == 1003 {
 			fmt.Println("Token已过期，正在刷新...")
+			fmt.Printf("过期的Token: %s\n", machineInfo.AuthToken)
 			
 			// 刷新token
 			newToken, err := s.RefreshToken(ctx, machineInfo.AuthToken)
 			if err != nil {
 				return nil, fmt.Errorf("failed to refresh token: %v", err)
 			}
+			fmt.Printf("获取到新Token: %s\n", newToken)
 
 			// 更新数据库中的token
 			if err := s.dbService.SaveMachineInfo(&models.MachineInfo{
@@ -341,6 +345,14 @@ func (s *CloudAIService) PredictWithFile(ctx context.Context, imagePath string) 
 			}); err != nil {
 				return nil, fmt.Errorf("failed to update token in database: %v", err)
 			}
+			fmt.Println("新Token已保存到数据库")
+
+			// 验证数据库更新
+			updatedInfo, err := s.dbService.GetMachineInfo()
+			if err != nil {
+				return nil, fmt.Errorf("failed to verify token update: %v", err)
+			}
+			fmt.Printf("数据库中的Token: %s\n", updatedInfo.AuthToken)
 
 			fmt.Println("Token刷新成功，重试请求...")
 
@@ -519,6 +531,8 @@ func (s *CloudAIService) AuthDevice(ctx context.Context, sn, secret string) (str
 
 // RefreshToken 刷新token
 func (s *CloudAIService) RefreshToken(ctx context.Context, oldToken string) (string, error) {
+	fmt.Printf("开始刷新Token，旧Token: %s\n", oldToken)
+
 	// 创建请求
 	req, err := http.NewRequestWithContext(ctx, "POST", s.baseURL+"/devices/refresh", nil)
 	if err != nil {
@@ -526,6 +540,8 @@ func (s *CloudAIService) RefreshToken(ctx context.Context, oldToken string) (str
 	}
 
 	req.Header.Set("Authorization", "Bearer "+oldToken)
+	fmt.Printf("刷新Token请求URL: %s\n", req.URL.String())
+	fmt.Printf("刷新Token请求头: %s\n", req.Header.Get("Authorization"))
 
 	// 发送请求
 	resp, err := s.httpClient.Do(req)
@@ -540,6 +556,9 @@ func (s *CloudAIService) RefreshToken(ctx context.Context, oldToken string) (str
 		return "", fmt.Errorf("read response failed: %v", err)
 	}
 
+	fmt.Printf("刷新Token响应状态码: %d\n", resp.StatusCode)
+	fmt.Printf("刷新Token响应内容: %s\n", string(respBody))
+
 	// 解析响应
 	var refreshResp DeviceAuthResponse
 	if err := json.Unmarshal(respBody, &refreshResp); err != nil {
@@ -550,5 +569,6 @@ func (s *CloudAIService) RefreshToken(ctx context.Context, oldToken string) (str
 		return "", fmt.Errorf("refresh token failed: %s", refreshResp.Message)
 	}
 
+	fmt.Printf("成功获取新Token: %s\n", refreshResp.Data.Token)
 	return refreshResp.Data.Token, nil
 } 

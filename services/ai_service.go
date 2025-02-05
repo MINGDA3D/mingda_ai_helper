@@ -81,6 +81,12 @@ func (s *LocalAIService) Predict(ctx context.Context, imageURL string, taskID st
 	}
 	req.Header.Set("Content-Type", "application/json")
 
+	// 打印请求信息（调试用）
+	fmt.Printf("\n请求URL: %s\n", req.URL.String())
+	fmt.Printf("请求方法: %s\n", req.Method)
+	fmt.Printf("Content-Type: %s\n", req.Header.Get("Content-Type"))
+	fmt.Printf("请求体: %s\n\n", string(jsonData))
+
 	// 发送请求
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
@@ -88,20 +94,47 @@ func (s *LocalAIService) Predict(ctx context.Context, imageURL string, taskID st
 	}
 	defer resp.Body.Close()
 
+	// 读取响应内容
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %v", err)
+	}
+
+	// 打印响应信息（调试用）
+	fmt.Printf("响应状态码: %d\n", resp.StatusCode)
+	fmt.Printf("响应内容: %s\n\n", string(respBody))
+
 	// 检查响应状态码
 	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("server returned non-200 status code: %d, body: %s", resp.StatusCode, string(respBody))
 	}
 
-	// 创建初始预测结果
+	// 解析响应
+	var aiResp struct {
+		Detections []struct {
+			Bbox       []float64 `json:"bbox"`
+			Class      string    `json:"class"`
+			Confidence float64   `json:"confidence"`
+		} `json:"detections"`
+		HasDefect    bool   `json:"has_defect"`
+		PredictModel string `json:"predict_model"`
+		Status       string `json:"status"`
+		TaskID       string `json:"task_id"`
+	}
+
+	if err := json.Unmarshal(respBody, &aiResp); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %v, raw response: %s", err, string(respBody))
+	}
+
+	// 创建预测结果
 	result := &models.PredictionResult{
 		TaskID:           taskID,
 		PredictionStatus: models.StatusProcessing,
-		PredictionModel:  "local_ai",
+		PredictionModel:  aiResp.PredictModel,
+		HasDefect:        aiResp.HasDefect,
 	}
 
-	// 保存初始预测结果到数据库
+	// 保存预测结果到数据库
 	if err := s.dbService.SavePredictionResult(result); err != nil {
 		return nil, fmt.Errorf("failed to save prediction result: %v", err)
 	}

@@ -191,7 +191,6 @@ func main() {
 	router := handlers.SetupRouter(aiService, dbService, logService)
 	
 	// 添加设置相关的路由
-	router.POST("/api/v1/settings/sync", settingsHandler.HandleSettingsSync)
 	router.POST("/api/v1/ai/callback", settingsHandler.HandleAICallback)
 	
 	fmt.Println("HTTP路由设置完成")

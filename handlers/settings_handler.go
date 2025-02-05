@@ -88,7 +88,7 @@ func (h *SettingsHandler) HandleAICallback(c *gin.Context) {
 			status, err := h.moonrakerClient.GetPrinterStatus()
 			if err != nil {
 				fmt.Printf("获取打印机状态失败: %v\n", err)
-			} else if status.IsPrinting {
+			} else if status != nil && status.IsPrinting() {
 				if err := h.moonrakerClient.PausePrint(); err != nil {
 					fmt.Printf("暂停打印失败: %v\n", err)
 				} else {

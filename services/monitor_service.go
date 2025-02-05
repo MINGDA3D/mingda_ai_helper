@@ -19,6 +19,7 @@ import (
 type MonitorService struct {
 	moonrakerClient *MoonrakerClient
 	aiService       AIService
+	cloudAIService  AIService  // 添加云端AI服务
 	dbService       *DBService
 	logService      *LogService
 	
@@ -29,25 +30,31 @@ type MonitorService struct {
 	// 监控间隔
 	statusCheckInterval time.Duration
 	snapshotInterval   time.Duration
+
+	// AI服务计数器
+	aiCounter int
 }
 
 // NewMonitorService 创建新的监控服务
 func NewMonitorService(
 	moonrakerClient *MoonrakerClient,
-	aiService AIService,
+	localAIService AIService,
+	cloudAIService AIService,
 	dbService *DBService,
 	logService *LogService,
 ) *MonitorService {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &MonitorService{
 		moonrakerClient:     moonrakerClient,
-		aiService:           aiService,
+		aiService:           localAIService,
+		cloudAIService:      cloudAIService,
 		dbService:           dbService,
 		logService:          logService,
 		ctx:                 ctx,
 		cancel:             cancel,
 		statusCheckInterval: time.Minute,      // 1分钟检查一次状态
 		snapshotInterval:   time.Minute * 3,   // 3分钟拍照一次
+		aiCounter:          0,                 // 初始化AI计数器
 	}
 }
 
@@ -235,18 +242,44 @@ func (s *MonitorService) monitor() {
 			// 更新最后拍照时间
 			lastSnapshotTime = time.Now()
 
+			// 选择AI服务（每4次循环使用1次云端服务）
+			var currentAIService AIService
+			useCloudAI := s.aiCounter%4 == 3 && settings.EnableCloudAI
+			if useCloudAI {
+				currentAIService = s.cloudAIService
+				s.logService.Info("使用云端AI服务")
+			} else {
+				currentAIService = s.aiService
+				s.logService.Info("使用本地AI服务")
+			}
+			s.aiCounter++
+
 			// 调用AI服务进行预测
-			s.logService.Info("开始AI预测", zap.String("image_path", savePath))
-			result, err := s.aiService.PredictWithFile(s.ctx, savePath)
-			if err != nil {
+			s.logService.Info("开始AI预测", 
+				zap.String("image_path", savePath),
+				zap.Bool("use_cloud", useCloudAI))
+
+			// 创建初始预测结果
+			result := &models.PredictionResult{
+				TaskID:           fmt.Sprintf("PT%s", time.Now().Format("20060102150405")),
+				PredictionStatus: models.StatusProcessing,
+				PredictionModel:  "local_ai",
+			}
+
+			// 保存初始预测结果
+			if err := s.dbService.SavePredictionResult(result); err != nil {
+				s.logService.Error("保存初始预测结果失败", zap.Error(err))
+				continue
+			}
+
+			// 发送预测请求（结果会通过回调处理）
+			if _, err := currentAIService.PredictWithFile(s.ctx, savePath); err != nil {
 				s.logService.Error("AI预测失败", zap.Error(err))
 				continue
 			}
 
-			s.logService.Info("AI预测完成",
-				zap.String("task_id", result.TaskID),
-				zap.Int("status", int(result.PredictionStatus)),
-				zap.String("model", result.PredictionModel))
+			s.logService.Info("预测请求已发送，等待回调处理",
+				zap.String("task_id", result.TaskID))
 		}
 	}
 } 

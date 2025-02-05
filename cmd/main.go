@@ -178,14 +178,22 @@ func main() {
 	}
 	fmt.Println("监控服务启动成功")
 
+	// 创建设置处理器
+	settingsHandler := handlers.NewSettingsHandler(dbService, moonrakerClient)
+
 	// 设置HTTP路由
 	fmt.Println("设置HTTP路由...")
 	router := handlers.SetupRouter(aiService, dbService, logService)
+	
+	// 添加设置相关的路由
+	router.POST("/api/v1/settings/sync", settingsHandler.HandleSettingsSync)
+	router.POST("/api/v1/ai/callback", settingsHandler.HandleAICallback)
+	
 	fmt.Println("HTTP路由设置完成")
 
 	// 启动HTTP服务器
 	fmt.Println("启动HTTP服务器...")
-	if err := router.Run(":8080"); err != nil {
+	if err := router.Run(":8081"); err != nil {
 		log.Fatalf("启动HTTP服务器失败: %v", err)
 	}
 } 

@@ -108,7 +108,80 @@ func (s *LocalAIService) Predict(ctx context.Context, imageURL string, taskID st
 }
 
 func (s *LocalAIService) PredictWithFile(ctx context.Context, imagePath string) (*models.PredictionResult, error) {
-	return nil, fmt.Errorf("not implemented")
+	// 检查文件是否存在
+	if _, err := os.Stat(imagePath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("image file not found: %s", imagePath)
+	}
+
+	// 生成任务ID
+	taskID := fmt.Sprintf("PT%s", time.Now().Format("20060102150405"))
+
+	// 打开文件
+	file, err := os.Open(imagePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open image file: %v", err)
+	}
+	defer file.Close()
+
+	// 准备multipart表单
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+
+	// 添加文件
+	part, err := writer.CreateFormFile("file", filepath.Base(imagePath))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create form file: %v", err)
+	}
+	if _, err = io.Copy(part, file); err != nil {
+		return nil, fmt.Errorf("failed to copy file content: %v", err)
+	}
+
+	// 添加task_id和callback_url
+	if err = writer.WriteField("task_id", taskID); err != nil {
+		return nil, fmt.Errorf("failed to add task_id field: %v", err)
+	}
+	if err = writer.WriteField("callback_url", s.callbackURL); err != nil {
+		return nil, fmt.Errorf("failed to add callback_url field: %v", err)
+	}
+
+	if err = writer.Close(); err != nil {
+		return nil, fmt.Errorf("failed to close writer: %v", err)
+	}
+
+	// 创建上传请求
+	req, err := http.NewRequestWithContext(ctx, "POST", s.localURL+"/api/v1/predict", body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %v", err)
+	}
+
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	// 发送请求
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// 检查响应状态码
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("server returned non-200 status code: %d, body: %s", resp.StatusCode, string(respBody))
+	}
+
+	// 创建预测结果
+	result := &models.PredictionResult{
+		TaskID:           taskID,
+		PredictionStatus: models.StatusProcessing,
+		PredictionModel:  "local_ai",
+	}
+
+	// 保存预测结果到数据库
+	if err := s.dbService.SavePredictionResult(result); err != nil {
+		return nil, fmt.Errorf("failed to save prediction result: %v", err)
+	}
+
+	return result, nil
 }
 
 func (s *CloudAIService) Predict(ctx context.Context, imageURL string, taskID string) (*models.PredictionResult, error) {

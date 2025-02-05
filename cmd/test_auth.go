@@ -29,8 +29,8 @@ func main() {
 		log.Fatalf("初始化数据库服务失败: %v", err)
 	}
 
-	// 初始化AI服务
-	aiService := services.NewAIService(cfg.AI, dbService, logService)
+	// 初始化云端AI服务
+	cloudAIService := services.NewCloudAIService(cfg.AI.CloudURL, dbService)
 
 	// 生成设备SN
 	timestamp := time.Now().Format("150405")
@@ -43,7 +43,7 @@ func main() {
 
 	// 1. 注册设备
 	fmt.Printf("\n1. 注册设备...\n")
-	secret, err := aiService.RegisterDevice(context.Background(), deviceSN, deviceModel)
+	secret, err := cloudAIService.RegisterDevice(context.Background(), deviceSN, deviceModel)
 	if err != nil {
 		log.Fatalf("注册设备失败: %v", err)
 	}
@@ -51,7 +51,7 @@ func main() {
 
 	// 2. 设备认证
 	fmt.Printf("\n2. 设备认证...\n")
-	token, err := aiService.AuthDevice(context.Background(), deviceSN, secret)
+	token, err := cloudAIService.AuthDevice(context.Background(), deviceSN, secret)
 	if err != nil {
 		log.Fatalf("设备认证失败: %v", err)
 	}
@@ -69,7 +69,7 @@ func main() {
 
 	// 3. 刷新Token
 	fmt.Printf("\n3. 刷新Token...\n")
-	newToken, err := aiService.RefreshToken(context.Background(), token)
+	newToken, err := cloudAIService.RefreshToken(context.Background(), token)
 	if err != nil {
 		log.Fatalf("刷新Token失败: %v", err)
 	}

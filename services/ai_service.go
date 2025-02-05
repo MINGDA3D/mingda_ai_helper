@@ -334,7 +334,11 @@ func (s *CloudAIService) PredictWithFile(ctx context.Context, imagePath string) 
 			}
 
 			// 更新数据库中的token
-			if err := s.dbService.UpdateMachineToken(machineInfo.MachineSN, newToken); err != nil {
+			if err := s.dbService.SaveMachineInfo(&models.MachineInfo{
+				MachineSN:    machineInfo.MachineSN,
+				MachineModel: machineInfo.MachineModel,
+				AuthToken:    newToken,
+			}); err != nil {
 				return nil, fmt.Errorf("failed to update token in database: %v", err)
 			}
 

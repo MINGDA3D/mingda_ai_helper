@@ -382,9 +382,16 @@ func (s *CloudAIService) PredictWithFile(ctx context.Context, imagePath string) 
 
 	// 解析响应
 	var result struct {
-		Code int         `json:"code"`
-		Msg  string      `json:"msg"`
-		Data interface{} `json:"data"`
+		Code int    `json:"code"`
+		Msg  string `json:"msg"`
+		Data struct {
+			TaskID        string  `json:"task_id"`
+			Status        string  `json:"status"`
+			HasDefect     bool    `json:"has_defect"`
+			DefectType    string  `json:"defect_type"`
+			Confidence    float64 `json:"confidence"`
+			PredictModel  string  `json:"predict_model"`
+		} `json:"data"`
 	}
 
 	if err := json.Unmarshal(respBody, &result); err != nil {
@@ -395,26 +402,14 @@ func (s *CloudAIService) PredictWithFile(ctx context.Context, imagePath string) 
 		return nil, fmt.Errorf("upload failed: %s", result.Msg)
 	}
 
-	// 查询预测状态
-	statusReq, err := http.NewRequestWithContext(ctx, "GET", 
-		fmt.Sprintf("%s/device/print/images?task_id=%s", s.baseURL, taskID), nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create status request: %v", err)
-	}
-
-	statusReq.Header.Set("Authorization", "Bearer "+machineInfo.AuthToken)
-	
-	statusResp, err := s.httpClient.Do(statusReq)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get status: %v", err)
-	}
-	defer statusResp.Body.Close()
-
 	// 创建预测结果
 	predictionResult := &models.PredictionResult{
 		TaskID:           taskID,
-		PredictionStatus: models.StatusProcessing,
-		PredictionModel:  "cloud_ai",
+		PredictionStatus: models.StatusCompleted,
+		PredictionModel:  result.Data.PredictModel,
+		HasDefect:        result.Data.HasDefect,
+		DefectType:       result.Data.DefectType,
+		Confidence:       result.Data.Confidence,
 	}
 
 	// 保存预测结果到数据库

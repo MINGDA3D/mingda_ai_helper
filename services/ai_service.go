@@ -439,15 +439,17 @@ func (s *CloudAIService) PredictWithFile(ctx context.Context, imagePath string) 
 
 	// 解析查询响应
 	var queryResult struct {
-		Code int    `json:"code"`
-		Msg  string `json:"msg"`
-		Data struct {
-			TaskID        string  `json:"task_id"`
-			Status        string  `json:"status"`
-			HasDefect     bool    `json:"has_defect"`
-			DefectType    string  `json:"defect_type"`
-			Confidence    float64 `json:"confidence"`
-			PredictModel  string  `json:"predict_model"`
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+		Data    struct {
+			Result struct {
+				Confidence   float64 `json:"confidence"`
+				DefectType   string  `json:"defect_type"`
+				HasDefect    bool    `json:"has_defect"`
+				PredictModel string  `json:"predict_model"`
+			} `json:"result"`
+			Status string `json:"status"`
+			TaskID string `json:"task_id"`
 		} `json:"data"`
 	}
 
@@ -456,22 +458,22 @@ func (s *CloudAIService) PredictWithFile(ctx context.Context, imagePath string) 
 	}
 
 	// 打印解析后的查询结果
-	fmt.Printf("解析后的查询结果:\nCode: %d\nMsg: %s\nData:\n  TaskID: %s\n  Status: %s\n  HasDefect: %v\n  DefectType: %s\n  Confidence: %f\n  PredictModel: %s\n\n",
+	fmt.Printf("解析后的查询结果:\nCode: %d\nMessage: %s\nData:\n  TaskID: %s\n  Status: %s\n  Result:\n    HasDefect: %v\n    DefectType: %s\n    Confidence: %f\n    PredictModel: %s\n\n",
 		queryResult.Code,
-		queryResult.Msg,
+		queryResult.Message,
 		queryResult.Data.TaskID,
 		queryResult.Data.Status,
-		queryResult.Data.HasDefect,
-		queryResult.Data.DefectType,
-		queryResult.Data.Confidence,
-		queryResult.Data.PredictModel)
+		queryResult.Data.Result.HasDefect,
+		queryResult.Data.Result.DefectType,
+		queryResult.Data.Result.Confidence,
+		queryResult.Data.Result.PredictModel)
 
 	if queryResult.Code != 200 {
-		return nil, fmt.Errorf("query failed: %s", queryResult.Msg)
+		return nil, fmt.Errorf("query failed: %s", queryResult.Message)
 	}
 
 	// 检查查询结果是否包含所需数据
-	if queryResult.Data.PredictModel == "" {
+	if queryResult.Data.Result.PredictModel == "" {
 		// 如果查询结果中没有数据，可能需要重试
 		fmt.Println("警告：查询结果中缺少预测数据，等待3秒后重试...")
 		time.Sleep(3 * time.Second)
@@ -494,8 +496,8 @@ func (s *CloudAIService) PredictWithFile(ctx context.Context, imagePath string) 
 			return nil, fmt.Errorf("failed to decode retry query response: %v", err)
 		}
 
-		if queryResult.Code != 200 || queryResult.Data.PredictModel == "" {
-			return nil, fmt.Errorf("retry query failed or still missing data: %s", queryResult.Msg)
+		if queryResult.Code != 200 || queryResult.Data.Result.PredictModel == "" {
+			return nil, fmt.Errorf("retry query failed or still missing data: %s", queryResult.Message)
 		}
 	}
 
@@ -518,10 +520,10 @@ func (s *CloudAIService) PredictWithFile(ctx context.Context, imagePath string) 
 			DefectType   string  `json:"defect_type"`
 			Confidence   float64 `json:"confidence"`
 		}{
-			PredictModel: queryResult.Data.PredictModel,
-			HasDefect:    queryResult.Data.HasDefect,
-			DefectType:   queryResult.Data.DefectType,
-			Confidence:   queryResult.Data.Confidence,
+			PredictModel: queryResult.Data.Result.PredictModel,
+			HasDefect:    queryResult.Data.Result.HasDefect,
+			DefectType:   queryResult.Data.Result.DefectType,
+			Confidence:   queryResult.Data.Result.Confidence,
 		},
 	}
 

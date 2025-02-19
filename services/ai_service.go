@@ -154,10 +154,10 @@ func (s *LocalAIService) Predict(ctx context.Context, imageURL string, taskID st
 		HasDefect:        aiResp.HasDefect,
 	}
 
-	// 保存预测结果到数据库
-	if err := s.dbService.SavePredictionResult(result); err != nil {
-		return nil, fmt.Errorf("failed to save prediction result: %v", err)
-	}
+	// // 保存预测结果到数据库
+	// if err := s.dbService.SavePredictionResult(result); err != nil {
+	// 	return nil, fmt.Errorf("failed to save prediction result: %v", err)
+	// }
 
 	return result, nil
 }
@@ -413,9 +413,9 @@ func (s *CloudAIService) PredictWithFile(ctx context.Context, imagePath string) 
 	}
 
 	// 保存预测结果到数据库
-	if err := s.dbService.SavePredictionResult(predictionResult); err != nil {
-		return nil, fmt.Errorf("failed to save prediction result: %v", err)
-	}
+	// if err := s.dbService.SavePredictionResult(predictionResult); err != nil {
+	// 	return nil, fmt.Errorf("failed to save prediction result: %v", err)
+	// }
 
 	return predictionResult, nil
 }

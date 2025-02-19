@@ -273,11 +273,11 @@ func (s *MonitorService) monitor() {
 				PredictionModel:  "local_ai",
 			}
 
-			// 保存初始预测结果
-			if err := s.dbService.SavePredictionResult(result); err != nil {
-				s.logService.Error("保存初始预测结果失败", zap.Error(err))
-				continue
-			}
+			// // 保存初始预测结果
+			// if err := s.dbService.SavePredictionResult(result); err != nil {
+			// 	s.logService.Error("保存初始预测结果失败", zap.Error(err))
+			// 	continue
+			// }
 
 			// var err error
 			if useCloudAI {

@@ -422,32 +422,84 @@ func (s *CloudAIService) PredictWithFile(ctx context.Context, imagePath string) 
 	defer queryResp.Body.Close()
 
 	// 读取查询响应
-	// queryRespBody, err := io.ReadAll(queryResp.Body)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to read query response: %v", err)
-	// }
+	queryRespBody, err := io.ReadAll(queryResp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read query response: %v", err)
+	}
 
-	// // 解析查询响应
-	// var queryResult struct {
-	// 	Code int    `json:"code"`
-	// 	Msg  string `json:"msg"`
-	// 	Data struct {
-	// 		TaskID        string  `json:"task_id"`
-	// 		Status        string  `json:"status"`
-	// 		HasDefect     bool    `json:"has_defect"`
-	// 		DefectType    string  `json:"defect_type"`
-	// 		Confidence    float64 `json:"confidence"`
-	// 		PredictModel  string  `json:"predict_model"`
-	// 	} `json:"data"`
-	// }
+	// 解析查询响应
+	var queryResult struct {
+		Code int    `json:"code"`
+		Msg  string `json:"msg"`
+		Data struct {
+			TaskID        string  `json:"task_id"`
+			Status        string  `json:"status"`
+			HasDefect     bool    `json:"has_defect"`
+			DefectType    string  `json:"defect_type"`
+			Confidence    float64 `json:"confidence"`
+			PredictModel  string  `json:"predict_model"`
+		} `json:"data"`
+	}
 
-	// if err := json.Unmarshal(queryRespBody, &queryResult); err != nil {
-	// 	return nil, fmt.Errorf("failed to decode query response: %v", err)
-	// }
+	if err := json.Unmarshal(queryRespBody, &queryResult); err != nil {
+		return nil, fmt.Errorf("failed to decode query response: %v", err)
+	}
 
-	// if queryResult.Code != 200 {
-	// 	return nil, fmt.Errorf("query failed: %s", queryResult.Msg)
-	// }
+	if queryResult.Code != 200 {
+		return nil, fmt.Errorf("query failed: %s", queryResult.Msg)
+	}
+
+	// 构造回调请求体
+	callbackBody := struct {
+		TaskID string `json:"task_id"`
+		Status string `json:"status"`
+		Result struct {
+			PredictModel string  `json:"predict_model"`
+			HasDefect    bool    `json:"has_defect"`
+			DefectType   string  `json:"defect_type"`
+			Confidence   float64 `json:"confidence"`
+		} `json:"result"`
+	}{
+		TaskID: taskID,
+		Status: "2", // 完成状态
+		Result: struct {
+			PredictModel string  `json:"predict_model"`
+			HasDefect    bool    `json:"has_defect"`
+			DefectType   string  `json:"defect_type"`
+			Confidence   float64 `json:"confidence"`
+		}{
+			PredictModel: queryResult.Data.PredictModel,
+			HasDefect:    queryResult.Data.HasDefect,
+			DefectType:   queryResult.Data.DefectType,
+			Confidence:   queryResult.Data.Confidence,
+		},
+	}
+
+	// 将回调请求体转换为JSON
+	callbackJSON, err := json.Marshal(callbackBody)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal callback body: %v", err)
+	}
+
+	// 创建回调请求
+	callbackReq, err := http.NewRequestWithContext(ctx, "POST", "http://localhost:8081/api/v1/ai/callback", bytes.NewBuffer(callbackJSON))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create callback request: %v", err)
+	}
+	callbackReq.Header.Set("Content-Type", "application/json")
+
+	// 发送回调请求
+	callbackResp, err := s.httpClient.Do(callbackReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send callback request: %v", err)
+	}
+	defer callbackResp.Body.Close()
+
+	// 检查回调响应状态
+	if callbackResp.StatusCode != http.StatusOK {
+		callbackRespBody, _ := io.ReadAll(callbackResp.Body)
+		return nil, fmt.Errorf("callback request failed with status %d: %s", callbackResp.StatusCode, string(callbackRespBody))
+	}
 
 	// // 创建预测结果
 	// predictionResult := &models.PredictionResult{

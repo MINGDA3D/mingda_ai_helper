@@ -422,10 +422,10 @@ func (s *CloudAIService) PredictWithFile(ctx context.Context, imagePath string) 
 	defer queryResp.Body.Close()
 
 	// 读取查询响应
-	queryRespBody, err := io.ReadAll(queryResp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read query response: %v", err)
-	}
+	// queryRespBody, err := io.ReadAll(queryResp.Body)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to read query response: %v", err)
+	// }
 
 	// // 解析查询响应
 	// var queryResult struct {

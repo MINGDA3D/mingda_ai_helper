@@ -267,11 +267,11 @@ func (s *MonitorService) monitor() {
 			taskID := fmt.Sprintf("PT%s", time.Now().Format("20060102150405"))
 
 			// 创建初始预测结果
-			result := &models.PredictionResult{
-				TaskID:           taskID,
-				PredictionStatus: models.StatusProcessing,
-				PredictionModel:  "local_ai",
-			}
+			// result := &models.PredictionResult{
+			// 	TaskID:           taskID,
+			// 	PredictionStatus: models.StatusProcessing,
+			// 	PredictionModel:  "local_ai",
+			// }
 
 			// // 保存初始预测结果
 			// if err := s.dbService.SavePredictionResult(result); err != nil {

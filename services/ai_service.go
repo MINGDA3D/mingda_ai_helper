@@ -402,22 +402,69 @@ func (s *CloudAIService) PredictWithFile(ctx context.Context, imagePath string) 
 		return nil, fmt.Errorf("upload failed: %s", result.Msg)
 	}
 
-	// 创建预测结果
-	predictionResult := &models.PredictionResult{
-		TaskID:           taskID,
-		PredictionStatus: models.StatusCompleted,
-		PredictionModel:  result.Data.PredictModel,
-		HasDefect:        result.Data.HasDefect,
-		DefectType:       result.Data.DefectType,
-		Confidence:       result.Data.Confidence,
+	// 休眠3秒
+	time.Sleep(3 * time.Second)
+
+	// 创建查询请求
+	queryURL := fmt.Sprintf("%s/device/print/images?task_id=%s", s.baseURL, taskID)
+	queryReq, err := http.NewRequestWithContext(ctx, "GET", queryURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create query request: %v", err)
 	}
 
-	// 保存预测结果到数据库
+	queryReq.Header.Set("Authorization", "Bearer "+machineInfo.AuthToken)
+
+	// 发送查询请求
+	queryResp, err := s.httpClient.Do(queryReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send query request: %v", err)
+	}
+	defer queryResp.Body.Close()
+
+	// 读取查询响应
+	queryRespBody, err := io.ReadAll(queryResp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read query response: %v", err)
+	}
+
+	// // 解析查询响应
+	// var queryResult struct {
+	// 	Code int    `json:"code"`
+	// 	Msg  string `json:"msg"`
+	// 	Data struct {
+	// 		TaskID        string  `json:"task_id"`
+	// 		Status        string  `json:"status"`
+	// 		HasDefect     bool    `json:"has_defect"`
+	// 		DefectType    string  `json:"defect_type"`
+	// 		Confidence    float64 `json:"confidence"`
+	// 		PredictModel  string  `json:"predict_model"`
+	// 	} `json:"data"`
+	// }
+
+	// if err := json.Unmarshal(queryRespBody, &queryResult); err != nil {
+	// 	return nil, fmt.Errorf("failed to decode query response: %v", err)
+	// }
+
+	// if queryResult.Code != 200 {
+	// 	return nil, fmt.Errorf("query failed: %s", queryResult.Msg)
+	// }
+
+	// // 创建预测结果
+	// predictionResult := &models.PredictionResult{
+	// 	TaskID:           taskID,
+	// 	PredictionStatus: models.StatusCompleted,
+	// 	PredictionModel:  queryResult.Data.PredictModel,
+	// 	HasDefect:        queryResult.Data.HasDefect,
+	// 	DefectType:       queryResult.Data.DefectType,
+	// 	Confidence:       queryResult.Data.Confidence,
+	// }
+
+	// // 保存预测结果到数据库
 	// if err := s.dbService.SavePredictionResult(predictionResult); err != nil {
 	// 	return nil, fmt.Errorf("failed to save prediction result: %v", err)
 	// }
 
-	return predictionResult, nil
+	return nil, nil
 }
 
 // RegisterDevice 注册设备

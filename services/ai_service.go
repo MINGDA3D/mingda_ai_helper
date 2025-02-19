@@ -414,6 +414,13 @@ func (s *CloudAIService) PredictWithFile(ctx context.Context, imagePath string) 
 
 	queryReq.Header.Set("Authorization", "Bearer "+machineInfo.AuthToken)
 
+	// 打印查询请求信息
+	fmt.Printf("\n发送查询请求:\n")
+	fmt.Printf("请求URL: %s\n", queryReq.URL.String())
+	fmt.Printf("请求方法: %s\n", queryReq.Method)
+	fmt.Printf("Authorization: Bearer %s\n", machineInfo.AuthToken)
+	fmt.Printf("TaskID: %s\n\n", taskID)
+
 	// 发送查询请求
 	queryResp, err := s.httpClient.Do(queryReq)
 	if err != nil {
@@ -426,6 +433,9 @@ func (s *CloudAIService) PredictWithFile(ctx context.Context, imagePath string) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to read query response: %v", err)
 	}
+
+	// 打印查询响应内容
+	fmt.Printf("\n查询响应内容:\n%s\n\n", string(queryRespBody))
 
 	// 解析查询响应
 	var queryResult struct {
@@ -442,11 +452,51 @@ func (s *CloudAIService) PredictWithFile(ctx context.Context, imagePath string) 
 	}
 
 	if err := json.Unmarshal(queryRespBody, &queryResult); err != nil {
-		return nil, fmt.Errorf("failed to decode query response: %v", err)
+		return nil, fmt.Errorf("failed to decode query response: %v, raw response: %s", err, string(queryRespBody))
 	}
+
+	// 打印解析后的查询结果
+	fmt.Printf("解析后的查询结果:\nCode: %d\nMsg: %s\nData:\n  TaskID: %s\n  Status: %s\n  HasDefect: %v\n  DefectType: %s\n  Confidence: %f\n  PredictModel: %s\n\n",
+		queryResult.Code,
+		queryResult.Msg,
+		queryResult.Data.TaskID,
+		queryResult.Data.Status,
+		queryResult.Data.HasDefect,
+		queryResult.Data.DefectType,
+		queryResult.Data.Confidence,
+		queryResult.Data.PredictModel)
 
 	if queryResult.Code != 200 {
 		return nil, fmt.Errorf("query failed: %s", queryResult.Msg)
+	}
+
+	// 检查查询结果是否包含所需数据
+	if queryResult.Data.PredictModel == "" {
+		// 如果查询结果中没有数据，可能需要重试
+		fmt.Println("警告：查询结果中缺少预测数据，等待3秒后重试...")
+		time.Sleep(3 * time.Second)
+		
+		// 重新发送查询请求
+		queryResp, err = s.httpClient.Do(queryReq)
+		if err != nil {
+			return nil, fmt.Errorf("failed to retry query request: %v", err)
+		}
+		defer queryResp.Body.Close()
+
+		queryRespBody, err = io.ReadAll(queryResp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read retry query response: %v", err)
+		}
+
+		fmt.Printf("\n重试查询响应内容:\n%s\n\n", string(queryRespBody))
+
+		if err := json.Unmarshal(queryRespBody, &queryResult); err != nil {
+			return nil, fmt.Errorf("failed to decode retry query response: %v", err)
+		}
+
+		if queryResult.Code != 200 || queryResult.Data.PredictModel == "" {
+			return nil, fmt.Errorf("retry query failed or still missing data: %s", queryResult.Msg)
+		}
 	}
 
 	// 构造回调请求体

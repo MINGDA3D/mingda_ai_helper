@@ -32,8 +32,8 @@ fi
 
 MAIN_DIR=$(dirname "$MAIN_GO")
 echo "找到main.go文件：$MAIN_GO"
-echo "切换到目录：$MAIN_DIR"
-cd "$MAIN_DIR"
+# echo "切换到目录：$MAIN_DIR"
+# cd "$MAIN_DIR"
 
 # 设置GOPATH和其他必要的环境变量
 export GOPATH="/home/mingda/go"
@@ -45,7 +45,7 @@ go mod tidy
 
 # 编译
 echo "开始编译..."
-go build -o ${INSTALL_DIR}/${APP_NAME}
+go build -o ${INSTALL_DIR}/${APP_NAME} $MAIN_GO
 
 if [ ! -f "${INSTALL_DIR}/${APP_NAME}" ]; then
     echo "错误：编译失败，可执行文件未生成"
@@ -59,7 +59,7 @@ chown -R mingda:mingda ${INSTALL_DIR}
 
 # 复制并安装systemd服务文件
 echo "安装systemd服务..."
-cp ${CURRENT_DIR}/${SERVICE_NAME} /etc/systemd/system/
+cp ${INSTALL_DIR}/deploy/${SERVICE_NAME} /etc/systemd/system/
 chmod 644 /etc/systemd/system/${SERVICE_NAME}
 
 # 重新加载systemd配置

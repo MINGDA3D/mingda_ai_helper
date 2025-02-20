@@ -229,8 +229,41 @@ func (c *MoonrakerClient) GetPrinterStatus() (*PrinterStatus, error) {
 	return status, nil
 }
 
+// 发送G-code命令的辅助函数
+func (c *MoonrakerClient) sendGCodeCommand(command string) error {
+	url := c.baseURL + "/api/printer/command"
+	reqBody := fmt.Sprintf(`{"commands": ["%s"]}`, command)
+	req, err := http.NewRequest("POST", url, strings.NewReader(reqBody))
+	if err != nil {
+		return fmt.Errorf("创建G-code请求失败: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("发送G-code请求失败: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("发送G-code失败，状态码: %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
 // PausePrint 暂停打印
 func (c *MoonrakerClient) PausePrint() error {
+	// 第一步：发送M118消息
+	err := c.sendGCodeCommand("M118 AI detected a potential printing error")
+	if err != nil {
+		return fmt.Errorf("发送M118消息失败: %v", err)
+	}
+
+	// 第二步：等待3秒
+	time.Sleep(3 * time.Second)
+	
+	// 第三步：发送暂停命令
 	req, err := http.NewRequest("POST", c.baseURL+"/printer/print/pause", nil)
 	if err != nil {
 		return fmt.Errorf("创建暂停打印请求失败: %v", err)

@@ -23,7 +23,34 @@ fi
 # 编译程序
 echo "编译程序..."
 cd ${INSTALL_DIR}
-/usr/local/go/bin/go build -o ${APP_NAME}
+# 查找main.go文件
+MAIN_GO=$(find . -name "main.go" -type f)
+if [ -z "$MAIN_GO" ]; then
+    echo "错误：未找到main.go文件"
+    exit 1
+fi
+
+MAIN_DIR=$(dirname "$MAIN_GO")
+echo "找到main.go文件：$MAIN_GO"
+echo "切换到目录：$MAIN_DIR"
+cd "$MAIN_DIR"
+
+# 设置GOPATH和其他必要的环境变量
+export GOPATH="/home/mingda/go"
+export PATH=$PATH:/usr/local/go/bin
+
+# 获取依赖
+echo "获取依赖..."
+go mod tidy
+
+# 编译
+echo "开始编译..."
+go build -o ${INSTALL_DIR}/${APP_NAME}
+
+if [ ! -f "${INSTALL_DIR}/${APP_NAME}" ]; then
+    echo "错误：编译失败，可执行文件未生成"
+    exit 1
+fi
 
 # 设置权限
 echo "设置权限..."

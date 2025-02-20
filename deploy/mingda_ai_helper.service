@@ -6,6 +6,8 @@ After=network.target
 Type=simple
 User=mingda
 WorkingDirectory=/home/mingda/mingda_ai_helper
+Environment="PATH=/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="GOPATH=/home/mingda/go"
 ExecStart=/home/mingda/mingda_ai_helper/mingda_ai_helper
 Restart=always
 RestartSec=5

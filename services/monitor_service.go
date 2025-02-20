@@ -51,9 +51,9 @@ func NewMonitorService(
 		logService:          logService,
 		ctx:                 ctx,
 		cancel:             cancel,
-		statusCheckInterval: time.Minute,      // 1分钟检查一次状态
-		snapshotInterval:   time.Minute * 3,   // 3分钟拍照一次
-		aiCounter:          0,                 // 初始化AI计数器
+		statusCheckInterval: time.Second * 30,    // 30秒检查一次状态
+		snapshotInterval:   time.Minute * 3,      // 3分钟拍照一次
+		aiCounter:          0,                    // 初始化AI计数器
 	}
 }
 
@@ -157,8 +157,6 @@ func (s *MonitorService) monitor() {
 	defer statusTicker.Stop()
 	defer snapshotTicker.Stop()
 
-	var lastSnapshotTime time.Time
-
 	for {
 		select {
 		case <-s.ctx.Done():
@@ -195,11 +193,6 @@ func (s *MonitorService) monitor() {
 			s.logService.Info("打印机正在打印中，AI监控已启用")
 
 		case <-snapshotTicker.C:
-			// 检查是否需要拍照
-			if time.Since(lastSnapshotTime) < s.snapshotInterval {
-				continue
-			}
-
 			// 获取用户设置
 			settings, err := s.dbService.GetUserSettings()
 			if err != nil {
@@ -241,9 +234,6 @@ func (s *MonitorService) monitor() {
 				s.logService.Error("获取快照失败", zap.Error(err))
 				continue
 			}
-
-			// 更新最后拍照时间
-			lastSnapshotTime = time.Now()
 
 			// 选择AI服务（每4次循环使用1次云端服务）
 			var currentAIService AIService

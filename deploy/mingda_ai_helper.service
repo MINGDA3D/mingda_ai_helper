@@ -4,11 +4,11 @@ After=network.target
 
 [Service]
 Type=simple
-User=root
-WorkingDirectory=/opt/mingda_ai_helper
-ExecStart=/opt/mingda_ai_helper/mingda_ai_helper
+User=mingda
+WorkingDirectory=/home/mingda/mingda_ai_helper
+ExecStart=/home/mingda/mingda_ai_helper/mingda_ai_helper
 Restart=always
 RestartSec=5
 
 [Install]
-WantedBy=multi-user.target 
+WantedBy=multi-user.target

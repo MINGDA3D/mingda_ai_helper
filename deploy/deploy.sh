@@ -8,10 +8,9 @@ fi
 
 # 设置变量
 APP_NAME="mingda_ai_helper"
-INSTALL_DIR="/opt/${APP_NAME}"
+INSTALL_DIR="/home/mingda/mingda_ai_helper"
 SERVICE_NAME="${APP_NAME}.service"
 CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BUILD_DIR="$(dirname "$CURRENT_DIR")"
 
 echo "开始部署 ${APP_NAME}..."
 
@@ -21,25 +20,15 @@ if systemctl is-active --quiet ${SERVICE_NAME}; then
     systemctl stop ${SERVICE_NAME}
 fi
 
-# 创建安装目录
-echo "创建安装目录..."
-mkdir -p ${INSTALL_DIR}
-
 # 编译程序
 echo "编译程序..."
-cd ${BUILD_DIR}
-go build -o ${APP_NAME}
-
-# 复制文件到安装目录
-echo "复制文件到安装目录..."
-cp ${APP_NAME} ${INSTALL_DIR}/
-cp -r config ${INSTALL_DIR}/
-cp -r assets ${INSTALL_DIR}/
+cd ${INSTALL_DIR}
+/usr/local/go/bin/go build -o ${APP_NAME}
 
 # 设置权限
 echo "设置权限..."
 chmod +x ${INSTALL_DIR}/${APP_NAME}
-chown -R root:root ${INSTALL_DIR}
+chown -R mingda:mingda ${INSTALL_DIR}
 
 # 复制并安装systemd服务文件
 echo "安装systemd服务..."
@@ -65,4 +54,4 @@ echo "  启动服务: systemctl start ${SERVICE_NAME}"
 echo "  停止服务: systemctl stop ${SERVICE_NAME}"
 echo "  重启服务: systemctl restart ${SERVICE_NAME}"
 echo "  查看状态: systemctl status ${SERVICE_NAME}"
-echo "  查看日志: journalctl -u ${SERVICE_NAME} -f" 
+echo "  查看日志: journalctl -u ${SERVICE_NAME} -f"

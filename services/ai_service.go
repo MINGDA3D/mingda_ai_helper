@@ -537,7 +537,7 @@ func (s *CloudAIService) PredictWithFile(ctx context.Context, imagePath string) 
 	fmt.Printf("\n回调请求体:\n%s\n\n", string(callbackJSON))
 
 	// 创建回调请求
-	callbackReq, err := http.NewRequestWithContext(ctx, "POST", "http://localhost:8081/api/v1/ai/callback", bytes.NewBuffer(callbackJSON))
+	callbackReq, err := http.NewRequestWithContext(ctx, "POST", "http://localhost:8584/api/v1/ai/callback", bytes.NewBuffer(callbackJSON))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create callback request: %v", err)
 	}

@@ -172,7 +172,7 @@ func main() {
 
 	// 初始化本地AI服务
 	fmt.Println("初始化本地AI服务...")
-	callbackURL := fmt.Sprintf("http://%s:%d/api/v1/ai/callback", cfg.Moonraker.Host, 8081)
+	callbackURL := fmt.Sprintf("http://%s:%d/api/v1/ai/callback", cfg.Moonraker.Host, 8584)
 	aiService := services.NewLocalAIService(cfg.AI.LocalURL, callbackURL, dbService)
 	fmt.Println("本地AI服务初始化成功")
 
@@ -201,7 +201,7 @@ func main() {
 
 	// 启动HTTP服务器
 	fmt.Println("启动HTTP服务器...")
-	if err := router.Run(":8081"); err != nil {
+	if err := router.Run(":8584"); err != nil {
 		log.Fatalf("启动HTTP服务器失败: %v", err)
 	}
 } 
